@@ -1,0 +1,37 @@
+#!/usr/bin/perl -w
+
+#  Call after 'Stopisar'
+#  Tars entire ISAR3 folder and stores in /home/rmr/isardata/ folder
+#  
+#  Call:  perl ArchiveIsar
+#  
+#  Output: /home/rmr/isardata/isararchive_20151020T123456Z.tar.gz
+# 
+
+use lib $ENV{MYLIB};
+use perltools::MRutilities;
+use perltools::MRtime;
+
+	## DATA PATH
+my $datapath="$ENV{HOME}/swmain/apps/ISAR3";
+print"data path = $datapath\n";
+
+	## ARCHIVE PATH
+my $archivepath="$ENV{HOME}/isardata";
+print"Archive path=$archivepath\n";
+if(! -d $archivepath){
+	print"Create $archivepath\n";
+	`mkdir $archivepath`;
+}
+
+	## TAR FILE NAME
+my $tarname=sprintf "isararchive_%s.tar.gz",dtstr(now(),'iso');
+print"tarname=$tarname\n";
+
+
+	## TAR COMMAND
+my $cmd = sprintf "cd $datapath; tar -zcf $archivepath/$tarname .";
+print"$cmd\n";
+system $cmd;
+
+exit 0;
