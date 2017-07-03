@@ -1,0 +1,60 @@
+2017-06-16
+       Enter "Help" to read.   Press 'q' to end this sheet  !!!!
+       Enter "vim help.txt" to edit.  <esc>:wq to quit
+
+gtdaq        --  go to "~/swmain/apps/ISAR3/sw/$ "
+
+--- TIME --------------------------
+Date         --  2015 10 19 18 03 57 Z (Note 2 digit numbers, e.g. '03')
+SetDate r0srr0sr yyyy MM dd hh mm ss  --  sets the PC clock
+example:
+  SetDate r0srr0sr 2016 05 20 17 23 30<enter>
+
+--- EDIT SETUP FILE ---------------------
+vim setup/su1.txt  --  ip#, ports, cal coefficients, etc.
+cp setup/su1.txt setup/su.txt -- copy to the working file
+
+--- CHECK COMMS AND OPERATION -----------
+ping -c3 192.168.255.1  --  verify connection
+
+--- DIRECT CONNECT -----------------
+IRIDIUM SBD
+N             --  direct connect to Modem. "at+csq" signal strength
+  at          --    ans 'OK'
+  at+csq      --    signal strength
+  at+sbdwt=msg --   Store <=120 ch
+  at+sbdi     --    send stored message
+
+GPS  
+P             --  direct connect to GPS
+
+ISAR
+I             --  direct connect to ISAR, "^\ q" to end
+  T           --    Jump to terminal mode, '>'
+    ?         --      terminal menu
+    g         --      Go. End terminal session. Start operation.
+^\ q          --  end direct connect. Hold down <Crtl> and '\'. Release and press 'q'. 
+
+---- ARCHIVE DATA --------------------------
+ArchiveIsar   -- Makes an archive file in /home/rmr/isardata
+ClearIsarData -- Clears the data folder. (Checks y or n)
+
+-- START OPERATION ---------------------
+Startisar    --  Begin data collection
+isarraw      --  Confirm data flow  (^c to end)
+
+--- VIEW DATA -------------------------
+isarsbd     --  show WISBD packets, 10-min, ^c to end
+isarraw     --  show $WIROS raw data, 280 sec, ^c to end
+isaravg     --  show PC avg file, 10 min averages (5,15,25,...,55), ^c to end
+
+-- STOP OPERATION ---------------------
+Stopisar     --  End data collection
+
+--- ARCHIVE DATA --------------------------
+ArchiveIsar   -- Makes an archive file in /home/rmr/isardata
+ClearIsarData -- Clears the data folder. (Checks y or n)
+
+
+----- END -----------------
+

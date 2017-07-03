@@ -1,0 +1,44 @@
+#!/usr/bin/perl -w
+
+#  1. Call after 'Stopisar'
+#  2. ArchiveIsar
+#
+#  Wipes clean the ISAR3/data folder
+#    Asks permission before
+#  
+#  Call:  perl ClearIsarData
+#  
+#  Output: none
+# 
+
+use lib $ENV{MYLIB};
+use perltools::MRutilities;
+use perltools::MRtime;
+
+	## DATA PATH
+my $datapath="$ENV{HOME}/swmain/apps/ISAR3/data";
+print"data path = $datapath\n";
+
+print"
+=========================
+   WARNING
+=========================
+This process will delete everything from the ISAR3/data folder.
+Command \"ArchiveIsar\" should be used to backup all collected data.
+
+Proceed to delete?  (y or n): ";
+
+my $ans=<>;
+chomp($ans);
+print"You entered $ans\n";
+
+if($ans =~ /y/i){
+	print"Delete data\n";
+	my $cmd="rm -r $datapath/*";
+	#print"cmd=$cmd\n";
+	system $cmd;
+} else {
+	print"No delete.\n";
+}
+
+exit 0;

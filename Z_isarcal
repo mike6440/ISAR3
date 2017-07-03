@@ -1,0 +1,316 @@
+#!/usr/bin/expect --
+set PROGRAMNAME Z_isar 
+
+set VERSION 22;#21c
+set EDITDATE 151102;#150415
+# 
+#v1a when gps is missing do not insert
+#v2 101226 add headers, 'h', and AVG:
+#v3 110217 add lat & lon to error messages
+#v4 110315 rmr -- trap bad isar data lines
+#v5 110322 rmr -- After lots of time I found the bug in GetEmis(). Now this is a cleaned up
+#  and better program.
+#v6 110505 rmr -- On startup copy the su file into the data folder.
+#v7 110714 rmr -- Add a tilt sensor, tcm2.6
+#v8 110725 rmr -- substitute tilt into missing fields in isar
+#v9 110725 rmr -- add tty.UC232-A serial out
+#v10 110801 rmr -- combine daq3 and daq4 operation
+#v11 -- I had all sorts of problems with this during installation for and14. Now I will take the time
+#		to make it right.
+# 1. Remove all the TCM stuff. 
+# 2. 
+#v12 -- The Hub IP comes from the setup file.
+#v13 -- use eof to test for a crashed program
+#v14 -- use globals and eof reset. Also general clean up.
+#v15 -- make more robust
+#v16 141021 -- clean up unix stuff
+#v17
+  # √-- remove sbd stuff. Wite out to /tmp/sbd
+  # √- Make aliases around the new sbd routines
+  # √- see fixed GPS code and make  it work
+#v18
+  # √ review the su and this code to clean unneeded su stuff
+  # √ remove autoreboot stuff, now covered with crontab
+  # - check e_cal for run or cal mode
+#v19 150104
+  # √ remove -nonewline from puts to gpsraw.
+#v20 150203
+ #   edit for calibration run
+#v21c -- only used for calibration. No GPS
+#v22 -- general review
+
+puts "
+RUN PROGRAM $PROGRAMNAME, VERSION $VERSION, EDITDATE $EDITDATE"
+
+set loguser 0;		#   test 0-quiet, 1=verbose
+log_user $loguser;
+
+		# SETUP FILE DEFINED
+set setupfile  [lindex $argv 0]
+puts "SETUP FILE FROM CMD LINE: $setupfile"
+		## SEE IF THE SETUP FILE EXISTS
+if [catch {open $setupfile} sufile] {
+	puts "Setup file open fails, exit 1"
+	exit 1
+} else {
+	puts "SETUP FILE $setupfile EXISTS"
+}
+
+global ISAR ISARPID ISARAV ISARAVPID
+global infoname
+global e_cal
+
+#========================================================
+		# PROCEDURE TO CONNECT TO ISAR  v13
+#============================================================
+proc SpawnIsar { hub_url isarport} {
+	global ISAR ISARPID infoname
+	set str [spawn_kermit $hub_url $isarport]
+	set ISAR [lindex $str 0];    
+	set ISARPID [lindex $str 1];
+	write_info $infoname "SPAWN ISAR KERMIT, IP=$hub_url, port=$isarport, spawn_id=$ISAR, pid=$ISARPID"
+}
+
+#==========================================
+#   PROCEDURE TO START AVGISAR PROGRAM
+#==========================================
+proc SpawnAvgIsar { setupfile } {
+	global ISARAV  ISARAVPID infoname
+	set ISARAVPID [spawn perl avgisarcal $setupfile]
+	set ISARAV $spawn_id
+	write_info $infoname "SPAWN ISARAV spawn_id = $ISARAV,  pid=$ISARAVPID"
+			# WAIT FOR THE STARTUP PROMPT
+	set timeout 5
+	expect {
+				# REPLY FROM AVG PROGRAM
+		"avgisarcal--" {
+			send_user "AVGISAR is ready\n"
+		}
+	}
+}
+#====================================================================
+		# PROCEDURE WRITE_INFO
+		# input
+		#  fname = fullfile name towrite the info string
+		#  str=the string to write
+		# call:
+		# write_info "/tmp/info" "This is a test."
+#=====================================================================
+proc write_info {fname str} {
+	set str [timestamp -gmt -format "%Y%m%dT%H%M%SZ,"]$str
+#	set str "$tm,$str";
+	exec echo $str >> $fname
+#	set F [open $fname a]
+#	
+#	puts $F "$str" 
+#	close $F
+	return $str
+}
+#===========================================================================
+# PROCEDURE TO CONNECT TO A PORT USING KERMIT
+# input
+#	serialport = full path name for the serial port, e.g. /dev/tty.usbserial0
+#   baud = desired baud rate, e.g. 9600
+#============================================
+proc spawn_kermit {hub_url portnumber} {
+	global infoname
+			# START PROCESS -- KERMIT
+	set pid [spawn kermit]
+	expect {
+		timeout {send_user "KERMIT FAILS TO OPEN\n"; exit 1}
+		">>"
+	}
+	
+			# OPEN THE PORT
+	send "set host $hub_url $portnumber\r"
+	expect ">>"
+	send "set tcp keepalive on 0\r\n"
+	expect ">>"
+	send "set tcp linger OFF\r\n"
+	expect ">>"
+	send "set tcp nodelay on\r\n"
+	expect ">>"
+	send "set telnet echo local\r\n"
+	expect ">>"
+			# this is important for using the rsr menu
+			# raw means send CR by itself, not CRLF and NOT CRNul
+	send "set telnet newline-mode nvt raw\r\n"
+	expect ">>"
+			# CONNECT 
+	send "connect\r"
+	expect {
+		timeout {send_user "TIMEOUT, NO CONNECT"; exit 1}
+		"Conn*---"  { }  #v15
+	}
+	set out $spawn_id;
+	lappend out $pid
+	return $out
+}
+#==================== END PROCEDURES =============================================
+
+		#============
+		## ISAR SERIAL NUMBER
+		#============
+spawn -noecho getsetupinfo $setupfile "ISAR SERIAL NUMBER"
+expect -re "(\.*)(\r)";
+set isarsn $expect_out(1,string)
+
+		#============
+		# DATAPATH
+		# We create a new info file each time we start the program.
+		#==============
+		## READ THE ISAR-RT OUT PATH
+spawn -noecho getsetupinfo $setupfile "ISAR-RT OUT PATH"
+expect -re "(\.*)(\r)";
+set datapath $expect_out(1,string)
+
+
+		# INFONAME
+set infoname "$env(DAQDATAFOLDER)/info.txt";
+send_user "INFONAME: $infoname\n";
+write_info $infoname "  ========== BEGIN PROGRAM $PROGRAMNAME ============="
+write_info $infoname "PROGRAM $PROGRAMNAME, Version $VERSION, Editdate $EDITDATE, Runtime [timestamp -gmt -format "%Y%m%d,%H%M%S"]"
+write_info $infoname  "ISAR SERIAL NUMBER: $isarsn"
+write_info $infoname "INFORMATION FILE: $infoname"
+write_info $infoname  "ISAR-RT OUT PATH: $datapath"
+
+		# PDS SERIAL HUB URL AND OFFSET
+spawn -noecho getsetupinfo $setupfile "SERIAL HUB URL"
+expect -re "(\.*)(\r)";
+set hub_url $expect_out(1,string)
+write_info $infoname  "SERIAL HUB URL: $hub_url"
+
+		# CALIBRATION FLAG
+spawn -noecho getsetupinfo $setupfile "CALIBRATION EMISSIVITY"
+expect -re "(\.*)(\r)";
+set e_cal $expect_out(1,string)
+
+write_info $infoname "CALIBRATION EMISSIVITY = $e_cal, CAL MODE."
+send_user "CALIBRATION EMISSIVITY = $e_cal, CAL MODE.\n"
+
+		## ISAR PORT
+spawn -noecho getsetupinfo $setupfile "ISAR HUB COM NUMBER"
+expect -re "(\.*)(\r)";
+set isarport $expect_out(1,string)
+write_info $infoname  "ISAR HUB COM NUMBER: $isarport"
+
+		#=================
+		# OPEN SET FILE NAMES AND NOTE TIME
+		#=================
+		# day0 = START JULIAN DAY
+set day0 [timestamp -gmt -format "%j"]
+write_info $infoname "start year day: $day0";
+		# day1 = current day used to detect a new day at midnight
+set day1 $day0
+
+		#=================
+		# WRITE TO ISAR RAW AND AVG FILE
+		# I01110304raw.txt
+		# I01110304avg.txt
+		#=================
+set fname [timestamp -gmt -format "%y%m%d"]
+set rwname "$datapath/isar_raw_$fname.txt";
+write_info $infoname  "ISAR RAW FILE: $rwname";
+		# OPEN SERIAL PORTS
+SpawnIsar $hub_url $isarport 
+		# OPEN AVG PROGRAMS
+SpawnAvgIsar $setupfile 
+
+		#====================
+		# TIMING PARAMETERS
+		#====================
+		# SET dt0 SO THE FIRST AVG WILL BE TRANSMITTED
+# set dt0 [expr [timestamp -gmt] -100]
+set timeout 30		;# leave enough time for the scan drum to move
+
+		# =====================
+		# MAIN LOOP
+		# Wait for a string from isar
+		# Send the string to isar_avg program
+		#======================
+write_info $infoname "===== BEGIN MAIN LOOP ====="
+set timeisar [timestamp -gmt]
+		# COUNT THE NUMBER OF GOOD ISAR RECORDS RECEIVED
+set Nrecs 0
+
+		#=================
+		# EXPECT LOOP
+		#=================
+while 1 {
+			#=============================
+			# CHECK FOR A GAP IN THE AVG SBD TRANSMISSIONS
+			# IF TIME SINCE A GOOD TX > $txsecs, THEN SEND AN ERROR MESSAGE
+			#=============================
+	set dt [timestamp -gmt]
+			# CHECK FOR A NEW DAY -- NEW FILES
+	set day1 [timestamp -gmt -format "%j"]
+	if {$day1 != $day0} {
+		send_user "DAY CHANGE\r\n"
+		set day0 $day1
+		set fname [timestamp -gmt -format "%y%m%d"]
+		set rwname "$datapath/isar_raw_$fname.txt";
+		write_info $infoname "---NEW DAY---"
+		write_info $infoname "rwname = $rwname"
+	}
+		
+			#================
+			# EXPECT FUNCTION -- WAITING FOR RESPONSE
+			# ===============
+	expect { 		
+		-i $ISAR 
+		"\\\$IS001*\\*00" {
+				#=========================
+				# $IS001 RAW DATA RECORD --
+				# v02 -- the new isar record begins with 
+				# $IS001,2010,01,01,00,50,35,  90.20, ...........,291.0,302.8*00
+				# the *00 is reserved for a check sum.
+				#==========================
+			set rawstr [string trimright $expect_out(0,string)]
+			set rawlen [string length $rawstr]
+			
+					## CHECK IF IT IS OF CORRECT SIZE v4
+			if { $rawlen > 200 && $rawlen < 240 } {
+						## CHOP OFF THE HEADER AND THE CHECKSUM TAIL v4
+				set strx [ string range $rawstr 7 end-3 ]
+				
+						# ARE THERE ANY BAD CHARACTERS see swmain/expect/misc/test_regexp.ex
+				if { [ regexp {[^0-9,\s\-\.\/TZ]+} $strx ] != 0 } {
+					send_user "BAD STR IN: $strx\n";
+				} else {
+					# increment Nrecs
+					set Nrecs [expr $Nrecs + 1];
+					set timeisar [timestamp -gmt];		#v1a time of the last good raw isar record
+			
+							#=================
+							# SAVE TO RAW FILE
+							#=================
+					set F [open $rwname a 0600]
+					puts $F [timestamp -gmt -format "%Y,%m,%d,%H,%M,%S, "]$rawstr  ;#v8d
+					close $F
+							#===================
+							# SEND TO ISARAV AND ISARAV FOR RESPONSE
+							#===================
+					send -i $ISARAV "$rawstr\r\n"
+				}
+			}
+		}
+
+		
+		-i $ISARAV 
+ 		-re "<<(\[^>]*)>>" { send_user ">>$expect_out(1,string)\n" }
+ 		
+				#=======================
+				# AVERAGE RECORD FROM ISARAV
+				#=======================
+ 		-re "(\\\$ISRAV.*#)\r" {
+ 			set timeout 10
+ 			set spawn_id $ISARAV
+ 			set avgstr $expect_out(1,string)
+			## PRINT TO TERMINAL
+ 			# AVG: $I0304,20101226,200000,47.60343,-122.28813,-999,-2.5,0.1,-1.5,0.0,0.00000,-999,-999,526,700,8.50,28.84,0.0442,01#
+ 			#send_user "ISAR AVG: \$Ivvss yyyyMMdd hhmmss  lat       lon       sst ptch sdp roll sdr emis    ktsky sea bb1 bb2 T1   T2     ormv  sw\n";
+ 			send_user "ISAR AVG: $avgstr\r\n"
+ 		}
+	}
+}
+

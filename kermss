@@ -1,0 +1,68 @@
+#!/usr/bin/expect --
+#kermit connect to serial server
+#Note: the file .kermrc has the command "prompt k>>"
+
+
+set log_user 0
+
+## DEFINE THE PORTS
+set argc [llength $argv]
+send_user "Nargs = $argc\n";
+if {$argc < 2} {
+	puts "========================================================"
+	puts "Program kermit_serial_connection.ex, Expect source code."
+	puts "Edit date 2015 01 21"
+	puts "CALL:"
+	puts "   ./kermss ip# port"
+	puts "Example:"
+	puts "   ./kermss 192.168.255.1 10001"
+	puts "========================================================"
+	exit 1;
+}
+
+set ip [lindex $argv 0]
+puts "IP# $ip"
+set pt [lindex $argv 1]
+puts "PORT $pt"
+
+# START PROCESS -- KERMIT FOR ID MODEM
+spawn kermit
+set ID $spawn_id
+set timeout 4
+
+expect {
+	-i ID
+	timeout {"KERMIT FAILS TO OPEN\n"; exit 1}
+	">>"
+}
+
+set timeout 3
+## OPEN THE PORT
+send "set host $ip $pt\r"
+expect ">>"
+
+send "set tcp keepalive on\r";
+expect ">>"
+
+send "set tcp linger off\r"
+expect ">>"
+
+send "set tcp nodelay on\r"
+expect ">>"
+
+send "set telnet echo local\r"
+expect ">>"
+
+send "set telnet newline-mode nvt raw\r"
+expect ">>"
+
+send "connect\r"
+expect {
+	"Conn*---"  {send_user "TTY CONNECTED\n"}
+	timeout {send_user "TIMEOUT, NO CONNECT"; exit 1}
+}
+
+set spawn_id $ID
+interact
+
+exit 0

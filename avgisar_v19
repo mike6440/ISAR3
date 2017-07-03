@@ -1,0 +1,1160 @@
+#!/usr/bin/perl -X
+my $PROGRAMNAME = 'avgisar';
+my $VERSION = '19';  
+my $EDITDATE = '151105';
+
+# RT PROCESSING OF ISAR DATA 
+#v01 -- taken from isrtsb
+#v01a -- Tabs = 273.15. It was 273.16.
+#v02 -- there is some funny stuff coming out of the isar in the gps data.
+#v04-- fix <<>> output for -999 not -999000
+#v05 110315 rmr -- fixed verbose print out. line 990 approx.  Also check input raw isar string.
+#v06 110316 rmr -- define minlat, maxlat, minlon, maxlon to trap bad positions.
+#v07 110322 rmr -- Finally!! I found the error in GetEmis(). If the rolls are too high then
+#	it returns $missing, -999, which locked up the program.
+#v08 110327 rmr -- Upgrading for the SOES Isar6. 
+#   tmp.txt for verbal option.
+#v09 110421 rmr -- Fix BB temp cal when Vref from adc12 fails.
+#v10 -- allow selection of BB thermistors to use.
+#$v11 110809 rmr -- Fix different format from isar06 as delivered.
+#	Added Vref calculation for soes. Fixed different format for input raw. Fixed log(x) for x<=0 error in BB_TempCal
+#	If pitch and roll are bad set to zero, not -999.
+#     
+#v12 110811 rmr -- make a new avg file each day
+#v13 -- Correct some problems in data handling:
+#  1. Lastdrum handling. clean up. non-critical I think.
+#  2. AccumulateStats. Bad kt value handling.
+#v14 --
+#  1. drum_jump_tolerance and drum_pointing_uncertainty are defined.
+#v15 -- CALIBRATION VIEW POSITION in su file.
+#v16 -- Calibration parameters
+#v17 -- run and cal in the same program
+#v18 -- clean and simplify
+#v19 -- clean and review before al41. RUN mode only
+
+use lib $ENV{DAQLIB};
+use perltools::MRtime;
+use perltools::MRutilities;
+use perltools::MRsensors;
+use perltools::MRstatistics;
+use perltools::Isar;
+use POSIX;
+
+
+#=======================
+# FIND THE SETUP FILE
+#=======================
+if ( $#ARGV == 0 ) {
+	print "read setup file from command line\n";
+	$setupfile = shift();
+} else {
+	print"read setup file from environment\n";
+	$setupfile = $ENV{SETUPFILE};
+}
+if ( ! -f $setupfile ) {
+	print "ERROR -- NO SETUP FILE, $setupfile\n";
+	exit 1;
+}
+print "SETUPFILE = $setupfile\n";
+
+my $str;
+my ($minlat, $maxlat, $minlon, $maxlon);
+
+
+#===================
+# DEFINE OUT PATH
+#===================
+my $outpath =  FindInfo($setupfile,'ISAR-RT OUT PATH', ': ');
+if ( ! -d $outpath ) { print"!! ISAR-RT OUT PATH ERROR, $outpath\n"; die }
+#print"OUTPATH=$outpath\n";
+
+
+#==================
+#CHECK FOR VERBOSE MODE
+#==================
+# KV VERBAL FLAG
+$kv = FindInfo($setupfile,"VERBOSE MODE",":");
+if ($kv==1){
+	use IO::File;
+	$tmpfile = "$outpath/tmp.txt";
+	$TMP = new IO::File(">$tmpfile");
+	open $TMP, ">$outpath/avglog.txt" or die;
+	my $pgmstart=now();
+	printf "Run time = %s\n", dtstr(now(), 'ssv');
+} else { $TMP = 0 }
+
+#=======================
+#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
+#======================
+$e_cal=0; # force field use.
+
+
+# MAKE STDOUT HOT -- see #"test ======================
+# see http://perl.plover.com/FAQs/Buffering.html
+select((select(STDOUT), $|=1)[0]);
+
+print"======= START PROCESSING $PROGRAMNAME ========================================\n";
+
+
+#----------------- HEADER ----------------
+$header = "PROGRAM: $PROGRAMNAME (Version $VERSION, Editdate $EDITDATE)
+RUN TIME: " . dtstr(now()) . "utc
+POINT OF CONTACT: Michael Reynolds, michael\@rmrco.com\n";
+
+$expname = FindInfo($setupfile,'EXPERIMENT NAME', ': ');
+$header = $header."EXPERIMENT NAME: $expname\n";
+
+$isarsn = FindInfo($setupfile,'ISAR SERIAL NUMBER', ': ');
+$header = $header."ISAR SERIAL NUMBER: $isarsn\n";
+
+$kt15sn = FindInfo($setupfile,'KT15 SERIAL NUMBER', ': ');  # KT15 SN: $kt15sn
+$header = $header."KT15 SERIAL NUMBER: $kt15sn\n";
+$filterfile = FindInfo($setupfile,'KT15 FILTER FILE', ': ');
+$header = $header."KT15 FILTER FILE: $filterfile\n";
+$filterfile = $ENV{DAQSWFOLDER}.'/'.$filterfile;
+
+
+$header = $header."CALIBRATION EMISSIVITY: $e_cal\n";
+$header = $header."NORMAL RUN\n";
+$header = $header."ISAR-RT OUT PATH: $outpath\n";
+$location = FindInfo($setupfile,'GEOGRAPHIC LOCATION', ': ');
+$header = $header."GEOGRAPHIC LOCATION: $location\n";
+$platform = FindInfo($setupfile,'PLATFORM NAME', ': ');
+$header = $header."PLATFORM NAME: $platform\n";
+$platformside = FindInfo($setupfile,'PLATFORM SIDE', ': ');
+if ( $platformside =~ /port/i ) { $platformside = "PORT" }
+else { $platformside = "STARBOARD" }
+if ( $kv == 1 ) {print $TMP "ISAR IS MOUNTED ON $platformside\n"}
+$header = $header."PLATFORM SIDE: $platformside\n";
+$side_location = FindInfo($setupfile,'LOCATION ON PLATFORM', ': ');
+$header = $header."LOCATION ON PLATFORM: $side_location\n";
+$ht_above_sealevel = FindInfo($setupfile,'HEIGHT ABOVE SEA LEVEL', ': ');
+$header = $header."HEIGHT ABOVE SEA LEVEL: $ht_above_sealevel\n";
+$Acorr = FindInfo($setupfile,'SSST SLOPE', ': ');
+$header = $header."SSST SLOPE: $Acorr\n";
+$CalOffset = FindInfo($setupfile,'SSST OFFSET', ': ');  # v05
+$header = $header."SSST OFFSET: $CalOffset\n";  # v05
+	# 0,1,2,3
+$str = FindInfo($setupfile,'SCAN VIEW ANGLES', ': ');
+@view = split(/[, ]+/,$str);
+$bb1view = 0; $bb2view = 1; $skyview = 2; $seaview = 3; 
+$header = $header."SCAN VIEW ANGLES: $view[$bb1view], $view[$bb2view], $view[$skyview], $view[$seaview]\n";
+$e_sea_0 = FindInfo($setupfile,'SEA EMISSIVITY', ':');  # black body emissivity
+$header = $header."SEA EMISSIVITY: $e_sea_0\n";
+$e_bb = FindInfo($setupfile,'BLACK BODY EMISSIVITY', ':');  # black body emissivity
+$header = $header."BLACK BODY EMISSIVITY: $e_bb\n";
+$e_a = FindInfo($setupfile,'APERATURE EMISSIVITY', ': '); # aperature emissivity
+$header = $header."APERTURE EMISSIVITY: $e_a\n";
+$avgsecs = FindInfo($setupfile,'ISAR AVERAGING TIME', ': ');
+$header = $header."AVERAGING TIME (secs): $avgsecs\n";
+$header = $header."TIME MARK IS CENTERED ON AVERAGING INTERVAL\n";
+$missing = FindInfo($setupfile,'MISSING VALUE', ': ');
+$header = $header."MISSING NUMBER: $missing\n";
+$Vref = FindInfo($setupfile,'BB THERM VREF', ': ');
+$header = $header."BB THERM VREF: $Vref\n";
+$Rref = FindInfo($setupfile,'BB TEMP Ref R', ': ');
+$header = $header."BB TEMP Ref R: $Rref\n";
+
+# v6 Resistances from testing with precision resistances. See notes 090909.
+#BB TEMP REF RS: 9973,9984,9974,9962,9976,9969
+$str = FindInfo($setupfile,'BB RESISTORS',':');
+@RefRs=split/[,\s]+/, $str;
+$header = $header."BB RESISTORS: @RefRs\n";
+
+#PROCESSING BB1 THERMISTORS: 1
+$str = FindInfo($setupfile,'PROCESSING BB1 THERMISTORS',':');
+@bb1therms = split(/[, ]+/,$str);
+$header = $header."PROCESSING BB1 THERMISTORS: @bb1therms\n";
+
+#PROCESSING BB2 THERMISTORS: 1 2
+$str = FindInfo($setupfile,'PROCESSING BB2 THERMISTORS',':');
+@bb2therms = split(/[, ]+/,$str);
+$header = $header."PROCESSING BB2 THERMISTORS: @bb2therms\n";
+
+$Nsamp_min = FindInfo($setupfile,'MIN SAMPLES FOR AVG', ': ');
+$header = $header."MIN SAMPLES FOR AVG: $Nsamp_min\n";
+
+# Rref for wintemp and tt8temp
+$Rref1 = FindInfo($setupfile,'APPERATURE THERM REF RESISTOR', ': ');
+$header = $header."APPERATURE THERM REF RESISTOR: $Rref1\n";
+
+$V12adc = FindInfo($setupfile,'REF VOLTAGE FOR 12 BIT ADC', ': ');
+$header = $header."REF VOLTAGE FOR 12 BIT ADC: $V12adc\n";
+$Vref1 = $V12adc;
+
+# Rref2 for four ysi apperature therms
+$str = FindInfo($setupfile,'APPERATURE THERMS REF RESISTANCES', ': ');
+@Rref2 = split(/[ ,]+/,$str);
+$header = $header."APPERATURE THERMS REF RESISTANCES: @Rref2\n";
+
+# v01a Conversion was 273.15.
+$Tabs = 273.15;  # absolute temperature at 0degC
+$header = $header."KELVIN CONVERSION: $Tabs\n";
+
+$header = $header."VERBOSE MODE: $kv\n";
+
+#================================
+#v4b MIN AND MAX LATITUDES AND LONGITUDES TO TRAP BAD POSITIONS
+#================================
+$minlat = FindInfo($setupfile,'MINIMUM EXPECTED LATITUDE', ': ');
+if ( NotANumber($minlat) ) { 
+	print"MINIMUM EXPECTED LATITUDE: $minlat, FAILS. Set to -90.\n";
+	$minlat=-90;
+}
+$header = $header."MINIMUM EXPECTED LATITUDE: $minlat\n";
+
+$maxlat = FindInfo($setupfile,'MAXIMUM EXPECTED LATITUDE', ': ');
+if ( NotANumber($maxlat) ) { 
+	print"MAXIMUM EXPECTED LATITUDE: $maxlat, FAILS. Set to 90.\n";
+	$maxlat= 90;
+}
+$header = $header."MAXIMUM EXPECTED LATITUDE: $maxlat\n";
+
+$minlon = FindInfo($setupfile,'MINIMUM EXPECTED LONGITUDE', ': ');
+if ( NotANumber($minlon) ) { 
+	print"MINIMUM EXPECTED LONGITUDE: $minlon, FAILS. Set to -180.\n";
+	$minlon=0;
+}
+$header = $header."MINIMUM EXPECTED LONGITUDE: $minlon\n";
+
+# if lon > min and < max, else missing
+$maxlon = FindInfo($setupfile,'MAXIMUM EXPECTED LONGITUDE', ': ');
+if ( NotANumber($maxlon) ) { 
+	print"MAXIMUM EXPECTED LONGITUDE: $maxlon, FAILS. Set to 360.\n";
+	$maxlon=360;
+}
+$header = $header."MAXIMUM EXPECTED LONGITUDE: $maxlon\n";
+
+
+@strings = FindLines($setupfile, 'COMMENTS:', 100 );
+$header = $header."COMMENTS:\n";
+if ( $#strings > 0 ){
+	for($i=1; $i<=$#strings; $i++) { 
+		if ( $strings[$i] =~ /^END/i ) {last}
+		else { $header = $header."$strings[$i]\n";}
+	}
+}
+
+#========================
+# OPEN THE HEADER FILE
+#========================
+$str = dtstr($pgmstart,'iso');
+my $fnhdr = "$outpath/isar_hdr_".$str.".txt";
+print"OUTPUT HEADER FILE: $fnhdr\n";
+open HDR,">$fnhdr" or die"OPEN HEADERFILE FAILS";
+MakeHeaderFile();
+close HDR;
+
+#===========================
+# AVG OUTPUT DATA FILE
+#===========================
+my $fn = sprintf "isar_avg_%s.txt",dtstr(now(),'date');
+$fnavg = $outpath . '/' . $fn;
+print"OUTPUT DATA FILE: $fnavg\n";
+open(AVG, ">$fnavg") or die"OPEN DATA FILE FAILS";	
+if ( $e_cal == 0 ) {
+	print AVG "navg yyyy MM dd hh mm ss lat lon ssst corr T1 T2 k1 k2 ksea ksky esea pitch stdpitch roll stdroll az var org orgmn orgmx sw1start sw1end sw1chgs sw2start sw2end sw2chgs\n";
+} else {
+	print AVG "navg  yyyy MM dd hh mm ss ssst T1 T2 k1 k2 kcal ecal\n";
+}
+close AVG;
+
+# ============ DATA PROCESSING PARAMETERS ===========
+$SampleFlag = 0;		# 0=standard   1=start at first sample time.
+$drum_jump_tolerance = 1; # degrees tolerance
+$drum_pointing_uncertainty = 1.0; # 0.5 
+
+#====================
+# OTHER GLOBAL VARIABLES
+#====================
+use constant YES => 1;
+use constant NO => 0;
+use constant PI => 3.14159265359;
+
+@sum_kt = ();
+$record{drum}=$missing;
+$Lastdrum = $missing;   # initialize the prior drum position
+$sw1_last = $missing;
+$sw2_last = $missing;
+$bb1t = $bb2t = $missing;  # mean bb temps
+
+
+# ---- ROUTINE HASH VARIABLES --------
+@VARS = ('org', 'bb1t1', 'bb1t2', 'bb1t3', 'bb2t1', 'bb2t2', 'bb2t3', 'Vref', 'bb1ap1', 'bb1bb2ap2');
+@VARS = (@VARS, 'bb2ap3', 'kttempcase', 'wintemp', 'tt8temp', 'Vpwr', 'roll', 'pitch');
+@VARS = (@VARS,'az', 'pnitemp', 'lat', 'lon', 'cog', 'sog', 'var', 'kttemp');
+
+#==================
+# MAKE THE TEMP - RAD TABLE
+# choose between planck-filter method or tim Nightingale method
+# Test print out optional
+#==================
+#MakeRadTable;   # save table in $Ttable and $Rtable
+# my @Rtablex = @Rtable;
+($ttr,$rtr)=MakeRadTable_planck($filterfile, $kv, $TMP);   # save table in $Ttable and $Rtable
+
+ClearAccumulatorArrays();		# Prepare for averaging first record
+
+##================
+## WAIT FOR THE FIRST RECORD
+## the record subroutine will return NO
+## until the input updates itis time mark.
+##==============
+while ( ReadNextRecord() == NO ) {}
+$Lastdrum = $record{drum};
+
+##=================
+##FIRST SAMPLE TIME MARKS
+##==============
+my ($dt_samp,$dt1,$dt2);
+($dt_samp, $dt1, $dt2) = ComputeSampleEndPoints ( $record{dt}, $avgsecs, $SampleFlag);
+printf"<<NEXT SAMPLE: dt_samp=%s, dt1=%s, dt2=%s>>\r\n", dtstr($dt_samp,'short'), dtstr($dt1,'short'), dtstr($dt2,'short');
+
+#==================
+# LOOP TO FIRST GOOD DATA RECORD
+#=================
+
+my $Nrecs = 1;					# number of records read in the time block
+$sum_switch{start1} = $sum_switch{end1} = $record{sw1};
+$sum_switch{start2} = $sum_switch{end2} = $record{sw2};
+$sum_switch{changes1}=0;
+$sum_switch{changes2}=0;
+$sw1_last = $record{sw1};
+$sw2_last = $record{sw2};
+my $EndOfDataFlag = NO;   # I might think of a way to end the program gracefully
+$Nsamp=0;  # global sample count
+
+AccumulateStats();
+
+#================
+# BEGIN THE MAIN SAMPLING LOOP
+# ===============
+while ( 1 ) {
+	#=====================
+	# LOOP OVER ALL RECORDS IN AVG TIME
+	#=====================
+ 	while ( 1 ) {
+		#---READ NEXT RECORD (loop)---
+		while ( ReadNextRecord() == NO )	{}
+		#---NEW RECORD, CHECK FOR END---
+		if ( $record{dt} >= $dt2 || $EndOfDataFlag == YES ) { last; }
+		else {		
+			$Nrecs++; # the total number of good records read
+			if ( $kv == 1 ) {print $TMP "Nrecs = $Nrecs\n"}
+			
+			#=================
+			# SKIP THE FIRST RECORD AFTER A CHANGE IN DRUM POSITION
+			#=================
+			if ( $record{drum} != $missing && abs($record{drum} - $Lastdrum) < $drum_jump_tolerance ) {
+				#print"test Process drum angle $record{drum}\n";
+				AccumulateStats();
+			}
+			#else { print"test Skip this drum sample\n"}
+			$Lastdrum = $record{drum};
+		}
+	}
+	if ( $kv == 1 ) {print $TMP "END OF THE AVG LOOP\n"}
+	
+	#====================
+	# COMPUTE SAMPLE STATS
+	#====================
+	$Nsamp++;
+	ComputeStats();
+	
+	#===========================
+	# AVG OUTPUT DATA APPEND
+	#===========================
+	my $fn = sprintf "isar_avg_%s.txt",dtstr(now(),'date');
+	$fnavg = $outpath . '/' . $fn;
+	open(AVG, ">>$fnavg") or die"OPEN DATA FILE FAILS";	
+	
+	if ( $e_cal == 0 ) {
+		#================================================
+		# RUN MODE -- COMPUTESSST
+		#================================================
+		# $T1 = black body 1, ambient, temperature, degC
+		# $T2 = heated BB temp, degC
+		# $kt1, $kt2, $ktsea, $ktsky = kt15 readings for the different pointing angles, adc counts or mV
+		# $pointangle = the pointing angle, relative to the isar, for the sea view, deg. Typ 125 or 135 deg.
+		# $pitch = nose up tilt angle. (connectors facing the bow).
+		# $roll = port side: port up tilt angle.  stbd side: port down tilt angle.
+		# $e0 = nominal emissivity value
+		# $e_bb = estimated emissivity of the black bodies, usually set to 1.
+		# $Acorr = calibration parameter, multiplier of the interpolation slope. Typ = 1 +/- 0.01
+		# $CalOffset = final sst adjustment, deg C. Typ +/-0.1.
+		# $kv = 0 or 1 for nonverbal or verbal. Set to zero during operation.
+		# $missing = value for bad data, usually = -999
+		# $ttr = reference to the planck table temperature, from the MakeRadTable_planck() function.
+		# $rtr = ditto for radiance.
+		# $fhTMP = IO::File handle for the TMP file.
+		@x = ( $bb1t, $bb2t, $samp_kt[$bb1view * 5], $samp_kt[$bb2view * 5], $samp_kt[$seaview * 5], $samp_kt[$skyview * 5],
+			$view[3], $samp_pitch{mn}, $samp_roll{mn}, $e_sea_0, $e_bb, $Acorr, $CalOffset, $kv, $missing, $ttr, $rtr, $TMP);
+		#print"test compute sst, x = @x\n";
+		
+		($T_skin, $T_uncorr, $T_corr, $e_sea) = ComputeSSST( @x );
+		#printf"T_skin = %.3f, T_corr=%.3f, T_uncorr=%.3f\n", $T_skin, $T_corr, $T_uncorr;
+		#printf"kt1=1000*$samp_kt[$bb1view*5]   kt2=1000*$samp_kt[$bb2view*5]\n";
+		
+		#=========================
+		# AVG OUTPUT
+		#=========================
+		# navg yyyy MM dd hh mm ss lat lon ssst corr T1 T2 k1 k2 ksea ksky esea pitch stdpitch roll stdroll az var org orgmn orgmx sw1start sw1end sw1chgs sw2start sw2end sw2chgs
+		$str = sprintf "%d %s %.5f %.5f %.3f %.3f %.3f %.3f %.1f %.1f %.1f %.1f %.5f %.1f %.1f %.1f %.1f %.0f %.0f %.1f %.1f %.1f %d %d %d %d %d %d",
+			$Nsamp, dtstr($dt_samp,'ssv'), $samp_lat{mn}, $samp_lon{mn}, $T_skin, $T_corr, $bb1t, $bb2t,
+			maxvalue(1000*$samp_kt[$bb1view*5],$missing), maxvalue(1000*$samp_kt[$bb2view*5],$missing), 
+			maxvalue(1000*$samp_kt[$seaview*5],$missing), maxvalue(1000*$samp_kt[$skyview*5],$missing), $e_sea,
+			$samp_pitch{mn}, $samp_pitch{std},	$samp_roll{mn}, $samp_roll{std}, $samp_az{mn}, $samp_var{mn},
+			maxvalue(1000*$samp_org{mn},$missing), maxvalue(1000*$samp_org{min},$missing), maxvalue(1000*$samp_org{max},$missing), 
+			$sum_switch{start1}, $sum_switch{end1}, $sum_switch{changes1},
+			$sum_switch{start2}, $sum_switch{end2}, $sum_switch{changes2};		
+		open(AVG, ">>$fnavg") or die"OPEN DATA FILE FAILS";	
+		print AVG "$str\n";
+		#print "test $str\n";
+	} else {	
+		#=====================================================
+		# CALIBRATION MODE - COMPUTETARGET
+		#======================================================
+		#    ($Tcal) = ComputeTarget($T1, $T2, $kt1, $kt2, $kttarget, $e_cal, $e_bb, $Acorr, $CalOffset, $kv, $missing, $ttr, $rtr, $TMP);
+		#where
+		# $T1 = black body 1, ambient, temperature, degC
+		# $T2 = heated BB temp, degC
+		# $kt1, $kt2, $kttarget = kt15 readings for the different pointing angles, adc counts or mV
+		# $ecal = emissivity of the calibration target, usually set to 1.
+		# $e_bb = estimated emissivity of the black bodies, usually set to 1.
+		# $Acorr = calibration parameter, multiplier of the interpolation slope. Typ = 1 +/- 0.01
+		# $CalOffset = final sst adjustment, deg C. Typ +/-0.1.
+		# $kv = 0 or 1 for nonverbal or verbal. Set to zero during operation.
+		# $missing = value for bad data, usually = -999
+		# $ttr = reference to the planck table temperature, from the MakeRadTable_planck() function.
+		# $rtr = ditto for radiance.
+		# $fhTMP = IO::File handle for the TMP file.
+		$e_sea=$e_cal; # for compatibility with sbd output
+		
+		@x = ( $bb1t, $bb2t, $samp_kt[$bb1view * 5], $samp_kt[$bb2view * 5], $samp_kt[$seaview * 5], $e_cal, $e_bb, $Acorr, $CalOffset,
+			 $kv, $missing, $ttr, $rtr, $TMP);
+		print"x = @x\n";
+		
+		$T_skin = ComputeTarget( @x );
+		printf"T_skin = %.3f\n", $T_skin;
+		
+		#=========================
+		# CALIBRATION OUTPUT 
+		#==========================
+		#navg  yyyy MM dd hh mm ss ssst T1 T2 k1 k2 kcal ecal
+		$str = sprintf "%d  %s  %.3f %.3f %.3f %.1f %.1f %.1f %.5f",
+			$Nsamp, dtstr($dt_samp,'ssv'), $T_skin, $bb1t, $bb2t,
+			maxvalue(1000*$samp_kt[$bb1view*5],$missing), maxvalue(1000*$samp_kt[$bb2view*5],$missing), 
+			maxvalue(1000*$samp_kt[$calview*5],$missing), $e_cal;
+		open(AVG, ">>$fnavg") or die"OPEN DATA FILE FAILS";	
+		print AVG "$str\n";
+		#print "test $str\n";
+	}
+	close AVG;
+	
+	##===========================
+	## SBD OUTPUT
+	## ==========================
+	#$ISAR04,09/15/06 08:25:26,0.00000,  0.0000,00298.36,  1.60,  0.00,  1.27,  0.05,0.98710, 0.6937, 0.7093, 0.000, 0.000,     nan, 0.000,0.0505,1#
+	# 				$ISR01,TIME,LAT,LON,SSSTC,P,SDP,R,SDR,EMIS,KSEA,KSKY,K1,K2,T1,T2,ORG#
+	# 			
+	# 			$Innvv 	: Isar SN and Program version, 00-99
+	# 			TIME	: SCS Time, MM-DD-YY HH:MM:SS
+	# 			LAT		: ($I5SST/15) : %.5f : Latitude
+	# 			LON		: ($I5SST/16) : %.5f : Longiture
+	# 			SSTC	: ($I5SST/02)*: %.2f : SSST derived variable (* note 1 below)
+	# 			P		: ($I5SST/13) : %.1f : Pitch mean 
+	# 			SDP		: ($I5SST/14) : %.1f : Standard deviation of pitch
+	# 			R		: ($I5SST/11) : %.1f : Roll mean 
+	# 			SDR		: ($I5SST/12) : %.1f : Standard deviation of roll
+	# 			EMIS	: ($I5SST/23) : %.5f : Emissivity used to compute SSST
+	# 			KSEA	: ($I5SST/12) : %.4f : KT15 avg ADC count for sea view
+	# 			KSKY	: ($I5SST/08) : %.4f : KT15 avg ADC count for sky view
+	# 			K1		: ($I5CAL/07) : %.4f : KT15 avg ADC count for BB1 view
+	# 			K2		: ($I5CAL/16) : %.4f : KT15 avg ADC count for BB2 view
+	# 			T1		: ($I5CAL/04) : %.4f : BB1 ADC avg count
+	# 			T2		: ($I5CAL/13) : %.4f : BB2 ADC avg count
+	# 			ORG		: ($ISAR5/03) : %.4f : ORG ADC count, most recent reading.
+	# 			SW1		: ($ISAR5/19) : %d   : Shutter switch position, 0/1
+	# 			# : END CHARACTER
+	
+	$str = sprintf "\$ISRAV,%s", dtstr($dt_samp,'short');
+	# LAT AND LON
+	if ( $samp_lat{mn} == $missing || $samp_lon{mn} == $missing ) { $str = sprintf("%s,-999,-999", $str) }
+	else { $str = sprintf("%s,%.5f,%.5f", $str, $samp_lat{mn}, $samp_lon{mn}) }
+	# SSST
+	if ( $T_skin == $missing ) { $str = sprintf("%s,-999", $str) }
+	else { $str = sprintf("%s,%.2f", $str,$T_skin) }
+	# PNI
+	if ( $samp_pitch{mn} == $missing || $samp_roll{mn} == $missing ) { $str = sprintf("%s,-999,0,-999,0", $str) }
+	else { $str = sprintf("%s,%.1f,%.1f,%.1f,%.1f",$str, $samp_pitch{mn},$samp_pitch{std}, $samp_roll{mn},$samp_roll{std}) }
+	# EMISSIVITY
+	$str = sprintf("%s,%.5f",$str,$e_sea);
+	# KT15 SEAVIEW
+	if ( $samp_kt[$seaview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$seaview*5]) }
+	# KT15 SKYVIEW
+	if ( $samp_kt[$skyview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$skyview*5]) }
+	# KT15 BB1VIEW
+	if ( $samp_kt[$bb1view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$bb1view*5]) }
+	# KT15 BB2VIEW
+	if ( $samp_kt[$bb2view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$bb2view*5]) }
+	
+	# THE REST
+	$str = sprintf("%s,%.2f,%.2f,%.4f,%d%d\#\n",$str,
+		$bb1t, $bb2t, $samp_org{mn}, $sum_switch{end1}, $sum_switch{end2} );
+	print"AVG: $str\r\n";	
+	if ( $kv == 1 ) {print $TMP "$str\n"}
+
+
+	#=================================
+	# PREPARE FOR THE NEXT AVERAGE
+	#==================================
+	$sum_switch{start1} = $sum_switch{end1} = $record{sw1};
+	$sum_switch{start2} = $sum_switch{end2} = $record{sw2};
+	$sum_switch{changes1}=0;
+	$sum_switch{changes2}=0;
+	$sw1_last = $record{sw1};
+	$sw2_last = $record{sw2};
+	ClearAccumulatorArrays();		# Prepare for averaging first record
+	
+	($dt_samp, $dt1, $dt2) = ComputeSampleEndPoints( $record{dt}, $avgsecs, 0);	#increment $dt1 and $dt2 
+	printf"NEXT SAMPLE: dt_samp=%s, dt1=%s, dt2=%s\n", dtstr($dt_samp,'short'), dtstr($dt1,'short'), dtstr($dt2,'short');
+	if ( $kv == 1 ) {printf $TMP "Nsamp = $Nsamp.  NEXT SAMPLE: dt_samp=%s, dt1=%s, dt2=%s\n", dtstr($dt_samp,'short'), dtstr($dt1,'short'), dtstr($dt2,'short')}
+	
+	AccumulateStats(); 			# deals with the current record
+	#=======================
+	# END OF THE LOOP
+	#=======================
+}
+
+exit(0);
+
+
+# NOTES -- PLANK TABLES
+
+
+#*************************************************************/
+sub ReadNextRecord
+#SOES OUTPUT CAL
+#20100527T155651Z,$ISAR5,19700101T000159Z,279.98,0.6887,0.7189,1.7756,1.7718,1.7705,2.3766,2.3748,2.3751,2494,1955,1948,1971,1885,1962,2595,3631,1,0,  1.8,  0.0,359.5, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,300.8,305.9,34,03/4801
+#20100527T155754Z,$ISAR5,19700101T000302Z,324.92,0.8327,0.8716,1.7742,1.7705,1.7692,2.3771,2.3754,2.3756,2496,1947,1949,1964,1886,1962,2591,3631,1,0,  1.8,  0.0,357.0, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,313.4,305.9,32,03/4801
+#20100527T160419Z,$ISAR5,19700101T000925Z, 24.92,0.6598,0.6883,1.7696,1.7656,1.7644,2.3797,2.3780,2.3782,2495,1948,1949,1965,1888,1963,2587,3631,1,0,  1.8,  0.0,357.1, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,298.1,305.8,32,03/4801
+#20100527T160637Z,$ISAR5,19700101T001144Z, 89.93,0.5966,0.6223,1.7687,1.7646,1.7634,2.3803,2.3786,2.3788,2494,1956,1949,1972,1887,1963,2587,3631,1,0,  1.8,  0.0,357.2, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,292.2,305.8,34,03/4801
+#as delivered
+#20100626T024404Z,$ISAR5, 19700101T010058Z,  90.12,2.7156,0.6768,1.8639,1.8334,1.8342,2.4721,2.4695,2.4696,3296,2457,2456,2454,2393,2464,3318,3533,0,0,-999.0,-999.0,-999.0,-999.0,-999.000000,-999.00000,-999.0,-999.0,-999.0,298.3,  3.0,4,06/10200
+#RMRCO CAL 
+#2011,03,04,00,00,31,$IS001,2010,01,02,04,23,07, 280.30, 0.0217,0.7118,1.6599,1.6916,1.6907,2.4597,2.4561,2.4617, 2550,1974,1968,1974,1968,4094,2596,3640, 1,1, -0.7, -0.5,182.8, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,300.3,305.8*00
+#2011,03,04,00,02,19,$IS001,2010,01,02,04,24,56, 325.10, 0.0259,0.8447,1.6600,1.6917,1.6908,2.4600,2.4564,2.4622, 2551,1975,1968,1973,1969,4094,2596,3640, 1,1, -0.5, -0.5,182.7, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,311.2,305.8*00
+#2011,03,04,00,04,10,$IS001,2010,01,02,04,26,47,  55.10, 0.0195,0.6387,1.6602,1.6919,1.6910,2.4602,2.4564,2.4622, 2550,1977,1970,1969,1968,4093,2596,3641, 1,1, -0.7, -0.5,182.6, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,293.3,305.8*00
+#2011,03,04,00,05,24,$IS001,2010,01,02,04,28,01,  90.03, 0.0453,0.6310,1.6603,1.6919,1.6911,2.4602,2.4567,2.4623, 2551,1979,1970,1968,1969,4094,2595,3640, 1,1, -0.7, -0.5,182.6, 24.5,-999.000000,-999.00000,-999.0,-999.0,-999.0,292.6,305.8*00
+#RMRCO OUTPUT OPERATION 280, 325, 45, 135
+#2011,01,07,12,35,36,$IS001,2010,01,04,06,06,14, 280.17, 0.0546,0.6220,1.9684,1.9579,1.9578,2.8986,2.9006,2.8997, 2546,2347,2329,2319,4092,2347,1912,3554, 1,0, -0.5,  0.2,283.6,-999.0,29.7227283333,-148.300363333,013.3,261.4,-12.4,291.6,297.6,00
+#2011,01,07,15,34,43,$IS001,2010,01,04,09,05,21, 324.85, 0.0629,0.7787,1.9805,1.9686,1.9683,2.9365,2.9383,2.9373, 2546,2363,2357,2372,4095,2368,1938,3554, 0,1,  0.5,  2.3,285.0,-999.0,29.6435433333,-149.098368333,014.6,263.5,-12.3,305.6,296.8,00
+#2011,01,07,12,36,54,$IS001,2010,01,04,06,07,32,  44.70, 0.0552,0.5582,1.9721,1.9587,1.9584,2.8993,2.9011,2.9003, 2546,2338,2335,2350,4095,2347,1912,3555, 0,1,  2.1, -3.9,283.4,-999.0,29.7221116667,-148.30601,012.6,265.3,-12.4,285.4,297.6,00
+#2011,01,07,12,37,10,$IS001,2010,01,04,06,07,48, 134.85, 0.0537,0.6349,1.9732,1.9597,1.9594,2.8993,2.9012,2.9003, 2545,2338,2333,2353,4095,2347,1912,3554, 0,1, -3.0,  1.8,284.5,-999.0,29.7220233333,-148.307056667,014.5,268.0,-12.4,292.9,297.6,00
+#SOES OPERATION
+#20100626T024404Z,$ISAR5,20100626T024403Z,279.92,0.8791,0.6355,2.0725,2.0670,2.0661,2.7486,2.7470,2.7470,2496,2249,2251,2262,2184,2266,2405,3589,1,0,  1.6, -6.0,282.5, 17.0,44.043282,-3.55670,18.3,149.2, 5.2,293.5,298.6,552,03/4801
+#20100626T024432Z,$ISAR5,20100626T024431Z,324.92,0.8792,0.7834,2.0725,2.0672,2.0661,2.7486,2.7470,2.7470,2494,2259,2250,2269,2183,2264,2406,3588,1,0,  1.6, -6.0,282.3, 17.0,44.041267,-3.55498,18.2,148.3, 5.2,306.4,298.6,552,03/4801
+#20100626T030017Z,$ISAR5,20100626T030016Z, 24.92,0.8791,0.3858,2.0750,2.0695,2.0684,2.7508,2.7491,2.7491,2494,2261,2253,2273,2186,2268,2402,3590,1,0,  1.8, -5.6,282.6, 17.0,43.972084,-3.49795,18.6,149.5, 5.2,266.8,298.6,552,03/4801
+#20100626T024736Z,$ISAR5,20100626T024735Z,154.95,0.8794,0.6217,2.0730,2.0673,2.0664,2.7490,2.7473,2.7473,2493,2260,2249,2273,2183,2265,2405,3588,1,0,  1.6, -6.0,282.5, 17.0,44.027866,-3.54390,18.3,148.8, 5.2,292.3,298.6,552,03/4801
+{	
+	my ($str, $strx, $cmd ,$dtrec, $Nfields, $ftmp, $ioffset);
+	my @dat;
+	my $flag = 0;
+	my @dt;
+
+	
+	##==================
+	## WAIT FOR INPUT
+	## Send out a prompt --
+	## Loop checking for input, 5 sec
+	## send another prompt
+	##==================
+	print"$PROGRAMNAME--\n";
+	chomp($str=<STDIN>);
+	#print"str = $str\n";
+	#die;
+	## COMMANDS
+	if ( $str =~ /quit/i ) {print"QUIT isrtexo\n"; exit 0 }
+	
+	#===============
+	# WE DEFINE THE TYPE OF ISAR STRING
+	#  csv = as produced on sn 01 and sn04 with rmrco tt8 sw
+	#  soes = as produced by soes models
+	#===============
+	my $kmodel = 'csv';
+	
+	## ONLY NMEA HEADER WITH $IS... HEADER
+	if($str =~ /\$IS/ )	{									# identifies a data string
+ 		#print "test Before: $str\n";
+		$str =~ s/^.*\$/\$/;									# remove leading stuff
+ 		#print "test After: $str\n";
+ 		
+ 		#=============
+		#PARSE THE RECORD
+		#=============
+		@dat = split(/[,\/:*]/, $str);							# parse the data record
+		#$i=0; foreach (@dat) { printf "%d %s\n",$i, $_; $i++  } #test
+		
+		#================
+		# CHECK EACH VARIABLE to see that it is a number.
+		# After character 6 the only non integers are commas.
+		# If there is anything else, skip the line. We remove the checksum on the end.
+		#v4a
+		#=================
+		if ( $dat[0] =~ /\$ISAR5/ ) {
+			$kmodel = 'soes';
+			$Nfields = 34;
+			$ioffset=0;
+			#printf"test timestamp %s\n", $dat[1];
+	 		$dtrec = dtstr2dt($dat[1]);					# This is the isar processor time. Generally not used.
+			if($kv==1) { print $TMP "%s\n", $dat[1]}
+			if ( $dat[1] =~ /[^,0-9\-\s\.TZ]+/ ) {
+				return (NO);
+			}
+		} elsif ( $dat[0] =~ /\$IS\d\d\d/ ) {
+			$kmodel = 'rmrco';
+			$Nfields = 37;
+			$ioffset = 5;
+	 		$dtrec = datesec($dat[1],$dat[2],$dat[3],$dat[4],$dat[5],$dat[6]);	# This is the isar processor time. Generally not used.
+			if ( $kv == 1 ) {printf $TMP "%s\n",$dat[1]}
+			#print"test IS other record\n"; 
+			if ( $dat[1] =~ /[^,0-9\-\s\.]+/ ) {
+				return (NO);
+			}
+		}
+		
+		#===================
+		# PROCESS THE STRING
+		#===================
+		# |-------------------------------------------------||-----------------------------------|
+		# 0 $ISAR5			identifier							0 $IS034	rmrco identifier
+		# 1 19700101T001144Z	isar timestamp, not necc correct.	1 2010		yyyy
+		# 														2 01		MM
+		# 														3 01		dd
+		# 														4 01		hh
+		# 														5 45		mm
+		# 														6 04		ss
+		# 2  89.93			scan position						7
+		# 3 0.5966			ad18-7 org							8
+		# 4 0.6223			ad18-6 kt15						  etc.
+		# 5 1.7687			ad18-5 bb2-3
+		# 6 1.7646			ad18-4 bb2-2
+		# 7 1.7634			ad18-3 bb2-1
+		# 8 2.3803			ad18-2 bb1-3
+		# 9 2.3786			ad18-1 bb1-2
+		# 10 2.3788			ad18-0 bb1-1
+		# 11 2494				ad12-0	Ref Therm /2
+		# 12 1956				ad12-1 A, bb1 apperature
+		# 13 1949				ad12-2 B, btwn bb1 and bb2
+		# 14 1972				ad12-3 C, bb2 apperature
+		# 15 1887				ad12-4 kt15 outside case
+		# 16 1963				ad12-5 window therm
+		# 17 2587				ad12-6 TT8 therm
+		# 18 3631				ad12-7 input power
+		# 19 1				Switch 1: 0->open, 1->in open position
+		# 20 0				Switch 2: 0->open, 1->in closed position
+		# 21   1.8			pitch
+		# 22   0.0			roll
+		# 23 357.2			fg compass
+		# 24  24.5			PNI temp C
+		# 25 -999.000000		lat
+		# 26 -999.00000		lon
+		# 27 -999.0			sog (kts)
+		# 28 -999.0			cog (T)
+		# 29 -999.0			var (deg)
+		# 30 292.2			kt15 target temp			=soes+5
+		# 31 305.8			kt15 ref temp				36 
+		# 32 34											37 00	checksum
+		# 33 03
+		# 34 4801
+	
+
+		if ( $#dat >= $Nfields -1 ) {          # PROCESS DOS OR UNIX
+			#================
+			# SAVE THE PRIOR DRUM AND SWITCH POSITIONS
+			#================
+			$sw1_last = $record{sw1};
+			$sw2_last = $record{sw2};
+			
+					# MEASURE VREF FROM THE 12-bit ADC
+					# Isar 1-4, old isars, adc = (3000--3700) and Vref = adc * 15 / 10000
+					# Isar 6, jamstec,           (2000-3000]  and        adc * 2 / 1000.
+					# Typically I6, adc = 3295  ==>> Vref = 4.9425
+					#  and otherwise, adc = 2548 ==>>       5.0960
+			my $vx = $dat[11+$ioffset];
+			if ( $vx < 3000 && $vx > 2000 ) {$vx = $vx * 2 / 1000}
+			elsif ( $vx < 3700 && $vx > 3000 ) {$vx = $vx * 15 / 10000}
+			else {$vx = $missing}
+		
+			%record = (
+				dt => now(),			# the actual record time is the DAQ time
+				drum => $dat[2+$ioffset],
+				org => $dat[3+$ioffset],
+				kt => $dat[4+$ioffset],
+				bb2t3 => $dat[5+$ioffset],
+				bb2t2 => $dat[6+$ioffset],
+				bb2t1 => $dat[7+$ioffset],
+				bb1t3 => $dat[8+$ioffset],
+				bb1t2 => $dat[9+$ioffset],
+				bb1t1 => $dat[10+$ioffset],
+				Vref => $vx,
+				bb1ap1 => $dat[12+$ioffset],
+				bb1bb2ap2 => $dat[13+$ioffset],
+				bb2ap3 => $dat[14+$ioffset],
+				kttempcase => $dat[15+$ioffset],
+				wintemp => $dat[16+$ioffset],
+				tt8temp => $dat[17+$ioffset],
+				Vpwr => $dat[18+$ioffset], # v3.3 input power Vpwr
+				sw1 => $dat[19+$ioffset],
+				sw2 => $dat[20+$ioffset],
+				pitch => $dat[21+$ioffset],
+				roll => $dat[22+$ioffset],
+				az => $dat[23+$ioffset],
+				pnitemp => $dat[24+$ioffset],
+				lat => $dat[25+$ioffset],
+				lon => $dat[26+$ioffset],
+				sog => $dat[27+$ioffset] *.51444,	# knots to m/s
+				cog => $dat[28+$ioffset],
+				var => $dat[29+$ioffset],
+				kttemp => $dat[30+$ioffset],
+				ktref => $dat[31+$ioffset]
+			);
+			
+			#======================
+			# CHECK ALL VARIABLES FOR BAD VALUES
+			#======================
+			if ( $record{drum} < 0 || $record{drum} > 360 ) { $record{drum} = $missing; }
+			if ( $record{org} < -1 || $record{org} > 5 ) { $record{org} = $missing; }
+			if ( $record{kt} < 0 || $record{kt} > 5 ) { $record{kt} = $missing; }
+			if ( $record{bb2t3} < 0 || $record{bb2t3} > 5 ) { $record{bb2t3} = $missing; }
+			if ( $record{bb2t2} < 0 || $record{bb2t2} > 5 ) { $record{bb2t2} = $missing; }
+			if ( $record{bb2t1} < 0 || $record{bb2t1} > 5 ) { $record{bb2t1} = $missing; }
+			if ( $record{bb1t3} < 0 || $record{bb1t3} > 5 ) { $record{bb1t3} = $missing; }
+			if ( $record{bb1t2} < 0 || $record{bb1t2} > 5 ) { $record{bb1t2} = $missing; }
+			if ( $record{bb1t1} < 0 || $record{bb1t1} > 5 ) { $record{bb1t1} = $missing; }
+			if ( $record{Vref} < 3.0 || $record{Vref} > 6.0 ) { $record{Vref} = $missing; }  #v3.3
+			if ( $record{bb1ap1} < 0 || $record{bb1ap1} > 4096 ) { $record{bb1ap1} = $missing; }
+				else{$record{bb1ap1} = ysi44006_circuit( $record{bb1ap1}, $Rref2[0], $Vref1, $V12adc, $missing); }
+			if ( $record{bb1bb2ap2} < 0 || $record{bb1bb2ap2} > 4096 ) { $record{bb1bb2ap2} = $missing; }
+				else{$record{bb1bb2ap2} = ysi44006_circuit( $record{bb1bb2ap2}, $Rref2[1], $Vref1, $V12adc, $missing); }
+			if ( $record{bb2ap3} < 0 || $record{bb2ap3} > 4096 ) { $record{bb2ap3} = $missing; }
+				else{$record{bb2ap3} = ysi44006_circuit( $record{bb2ap3}, $Rref2[2], $Vref1, $V12adc, $missing);}
+
+			if ( $record{kttempcase} < 0 || $record{kttempcase} > 4096 ) { $record{kttempcase} = $missing; }
+				else{$record{kttempcase} = ysi44006_circuit( $record{kttempcase}, $Rref2[3], $Vref1, $V12adc, $missing);}
+		
+			if ( $record{wintemp} < 0 || $record{wintemp} > 4096 ) { $record{wintemp} = $missing; }
+			else{ $record{wintemp} = RL1005_TempCal( $record{wintemp}, $Rref1, $Vref1, $Vref1, 1,$missing); }
+		
+			if ( $record{tt8temp} < 0 || $record{tt8temp} > 4096 ) { $record{tt8temp} = $missing; }
+			else{ $record{tt8temp} = RL1005_TempCal( $record{tt8temp}, $Rref1, $Vref1, $Vref1, 1, $missing); }
+			if ( $record{Vpwr} < 0 || $record{Vpwr} > 4096 ) { $record{Vpwr} = $missing; }
+			if ( $record{sw1} < 0 || $record{sw1} > 1 ) { $record{sw1} = $missing; }
+			if ( $record{sw2} < 0 || $record{sw2} > 1 ) { $record{sw2} = $missing; }
+			if ( $record{pitch} < -10 || $record{pitch} > 10 ) { $record{pitch} = 0; }
+			if ( $record{roll} < -10 || $record{roll} > 10 ) { $record{roll} = 0 }
+			if ( $record{az} < 0 || $record{az} > 360 ) { $record{az} = 0 }
+			if ( $record{pnitemp} < 0 || $record{pnitemp} > 50 ) { $record{pnitemp} = 0 }
+			#print"lat = $record{lat}, lon = $record{lon}\n";
+			if ( $record{lat} < $minlat || $record{lat} > $maxlat ) { $record{lat} = $missing; }
+			#v4b -- longitude is a trick, be careful
+			$x = $record{lon}; if ($x<0){$x+=360}
+			if ( $x < $minlon || $x > $maxlon ) { $record{lon} = $missing; }
+			if ( $record{sog} < 0 || $record{sog} > 40 ) { $record{sog} = $missing; }
+			if ( $record{cog} < 0 || $record{cog} > 360 ) { $record{cog} = $missing; }
+			if ( $record{var} < -60 || $record{var} > 60 ) { $record{var} = $missing; }
+			if ( $record{kttemp} < 250 || $record{kttemp} > 350 ) { $record{kttemp} = $missing; }
+			else { $record{kttemp} -= 273.15; }
+			
+			#=================================
+			# NORMAL OUTPUT
+			#=================================
+			# v4 we output mv for some things. But if they are missing we want to avoid sending -999000
+			# time,rain,sw1,sw2,drum,pitch,roll,kt15,bb11,bb12,bb13,bb21,bb22,bb23,Vref(ad2-0),lat,lon,sog,cog
+			# 20061213-221214,1065,1,0,-4.5, 3.4, 285, 1023,2456,2454,2345,3487,3498,3567,4.045,-34.564,-123.087,04.5,234
+			$str = sprintf"<<%s,%4.0f,%d,%d, %4.1f,%4.1f, %04.1f, %4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%6.3f",		#v15
+			dtstr($record{dt},'iso'), maxvalue($missing,$record{org}*1000),$record{sw1},$record{sw2},
+			$record{pitch},$record{roll},$record{drum},maxvalue($missing,$record{kt}*1000),
+			maxvalue($missing,$record{bb1t1}*1000),maxvalue($missing,$record{bb1t2}*1000),
+			maxvalue($missing,$record{bb1t3}*1000),
+			maxvalue($missing,$record{bb2t1}*1000),maxvalue($missing,$record{bb2t2}*1000),
+			maxvalue($missing,$record{bb2t3}*1000), $record{Vref};
+			
+			#===============
+			# NORMAL OUTPUT ADD POSITION
+			#===============
+			if ( $e_cal == 0 ) {
+				#print"lat = $record{lat}, lon = $record{lon}\n";
+				# CHECK LAT & LON
+				if ( $record{lat} == $missing || $record{lon} == $missing ) { $str = sprintf "$str,   -999,    -999" }
+				else { $str = sprintf "$str,%7.3f,%8.3f",$record{lat},$record{lon} }
+				# CHECK SOG & COG
+				if ( $record{sog} == $missing || $record{cog} == $missing ) { $str = sprintf "$str,-999,-999" }
+				else { $str = sprintf "$str,%4.1f,%4.0f",$record{sog},$record{cog}}
+			}
+			
+			printf "%s>>\n",$str;
+			if ( $kv == 1 ) {printf $TMP "%s>>\n",$str}
+			
+			return( YES );  # means we like the data here.
+		}
+	}
+	return ( NO );
+}
+
+#*************************************************************/
+sub MakeHeaderFile {
+	
+	print HDR "$header\n";
+#navg  yyyyMMddThhmmssZ    ssst      t1       t2       kt1    kt2    ktcal  ecal	
+	if ( $e_cal == 0 ) { print HDR "
+==========================
+navg = sample counter.
+yyyy MM dd hh mm ss = timestamp with date(yyyy MM dd) and time of day (hh mm ss) in UTC (Zulu) time. 
+LAT -- latitude, decimal degrees, +=N  -=S
+LON -- longitude, decimal degrees, +=E, -=W
+SSST -- Computed sample skin temperature, degC
+CORR -- Sky correction, contribution of sky reflection to Tskin, degC
+BB1 -- Ambient black body mean temperature, degC
+BB2 -- Heated black body mean temperature, degC
+KT1 -- KT15 BB1 output mean voltage, mV
+KT2 -- KT15 BB2 output mean voltage, mV
+KTSEA -- KT15 sea view mean output voltage, mV
+KTSKY -- KT15 sky view mean output voltage, mV
+E-SEA -- ocean emissivity used to compute Tskin
+PITCH -- mean pitch angle, deg
+PITCH-STD -- standard deviation of pitch angle, deg
+ROLL -- mean roll angle, deg
+ROLL-STD -- standard deviation of roll angle, deg
+AZ -- vector mean flux gate compass from PNI sensor, degM
+VAR -- magnetic variation from GPS, deg
+ORG -- mean miniORG output voltage, mV
+ORG-MIN -- sample minimum miniORG output, mV
+ORGMAX -- sample maximum miniORG output, mV
+SW1-ST -- switch 1 at the start of the sample
+END -- switch 1 at the end of the sample
+CHG -- count of the number of changes
+SW2 -- the same
+==========================";
+	}
+	else {
+		print HDR "RAW SSST DATA   CALIBRATION MODE
+==========================
+navg = sample counter.
+yyyyMMddThhmmssZ = timestamp with date(yyMMdd), T, time of day (hhmmss), and Z meaning UTC (Zulu) time. 
+ssst -- Computed target temperature, degC
+t1 -- Ambient black body mean temperature, degC
+t2 -- Heated black body mean temperature, degC
+kt1 -- KT15 BB1 output mean voltage, mV
+kt2 -- KT15 BB2 output mean voltage, mV
+ktcal -- KT15 calibration view mean output voltage, mV
+ecal -- emissivity of the calibration target. Usually = 1.
+=============================\n";
+	}
+	close(HDR);
+}
+#navg  yyyyMMddThhmmssZ    ssst      t1       t2       kt1    kt2    ktcal  ecal	
+
+
+
+#*************************************************************/
+sub ClearAccumulatorArrays
+# CLEAR ACCUMULATOR ARRAYS FOR ALL AVERAGING
+# varnames = str2mat('drum','org','kt15','bb2t3','bb2t2','bb2t1','bb1t3','bb1t2','bb1t1');
+# varnames = str2mat(varnames,'Vpwr','wintemp','tt8temp','sw1','sw2','pitch','roll','kttemp','pnitemp');  %v2
+# varnames = str2mat(varnames,'bb1ap1', 'bb1bb2ap','bb2ap3','kttempcase'); % v3
+# nvars = length(varnames(:,1));
+# Zeros global hash variable %sum_xx(sum, sumsq, n, min, max) where
+#  xx = (drum, kt, bb2t3, bb2t2, bb2t1, bb1t3, bb1t2, bb1t1, Vref, bb1ap1, bb1bb2ap2, bb2ap3, kttempcase,
+#	wintemp, tt8temp, Vpwr, sw1, sw2, pitch, roll, sog, cog, az, pnitemp, lat, lon, sog, var, kttemp )
+{
+	my ($i, @x, @y);
+	#================
+	# INITIALIZE THE KT15 ARRAY
+	#================
+	#--we need to have bins for the different kt15 views--
+	@x = (0,0,0,1e99,-1e99);  # set up for accumulating
+	@y = ($missing, 0, 0, 0, 0);  # set up for sample out
+	@sum_drum = @sum_kt = @x;
+	@samp_drum = @samp_kt = @y;
+	for ( $i=0; $i<$#view; $i++ ) 
+	{ 
+		@sum_drum = (@sum_drum, @x); 	# flat array, 5 items/view
+		@sum_kt = (@sum_kt, @x); 		# flat array, 5 items/view
+		@samp_drum = (@samp_drum, @y);
+		@samp_kt = (@samp_kt, @y);
+	}			
+
+	#=================
+	#	SET UP THE HASHES
+	#=================
+	my %xx = ( sum => 0, sumsq => 0, n => 0, min => 1e99, max => -1e99 );
+	my %yy = ( mn => $missing, std => $missing, n => 0, min => $missing, max => $missing );
+	# ---- INITIALIZE HASHES -------
+	foreach ( @VARS ) 
+	{
+		eval "%sum_$_ = %xx;   %samp_$_ = %yy;";
+	}
+	#==================
+	#  SWITCH HASHES
+	#==================
+	%sum_switch = ( start1 => $record{sw1}, end1 => $record{sw1}, start2 => $record{sw2}, end2 => $record{sw2},  
+		changes1 => 0, changes2 => 0 );
+}
+
+# 
+# #*************************************************************/
+# sub ComputeSampleEndPoints
+# # ($dt_samp, $dt1, $dt2) = ComputeSampleEndPoints($dtx, $avgsecs, $SampleFlag);
+# #
+# # Computes the time start and stop times for making an average.  Time is 
+# # expressed in seconds since 1970 by using the dtsecs() function.
+# #
+# #INPUT VARIABLES:
+# #  $dtx (=$record{dt}) is the current record time
+# #  $avgsecs = averaging time
+# #  $SampleFlag = 0/1
+# # 		There are two optons: either divide the day into even sample 
+# # 		periods of $avgsecs long (e.g. 0, 5, 10, ... min) or begin 
+# # 		precisely with the input sample.  The sample start parameter
+# # 		$SampleFlag is set for this option.
+# # OUTPUT (GLOBAL)
+# #  $dt_samp = the mid point of the sample interval
+# #  $dt1, $dt2 = current sample end points
+# # REQUIRED SUBROUTINES
+# #	datevec();
+# #	datesec();
+# #
+# # v101 060622 rmr -- begin tracking this subroutine.
+# # v101 060628 -- begin toolbox_avg
+# {
+# 	my ($y, $M, $d, $h, $m, $s, $dt0);
+# 	my $dt_samp = shift();
+# 	my $avgsecs = shift();
+# 	my $SampleFlag=shift();
+# 	
+# 	#$dt_samp = $record{dt};				# this is the time of the first sample.
+# 	if ( $SampleFlag == 0 )
+# 	{
+# 		#==================
+# 		# COMPUTE THE dt CURRENT BLOCK
+# 		#==================
+# 		($y, $M, $d, $h, $m, $s) = datevec( $dt_samp );
+# 		$dt0 = datesec($y, $M, $d, 0, 0, 0) - $avgsecs/2;  # epoch secs at midnight
+# 		$dt1 = $dt0 + $avgsecs * int( ($dt_samp - $dt0) / $avgsecs );	# prior sample block dtsec
+# 	} 
+# 	else { $dt1 = $dt_samp; }
+# 	
+# 	$dt2 = $dt1 + $avgsecs;			# next sample block dtsec
+# 	$dt_samp = $dt1 + $avgsecs/2;  # the time of the current avg block
+# 	return ($dt_samp, $dt1, $dt2);
+# }
+#*************************************************************/
+sub AccumulateStats
+# Add to the sums for statistical averages
+# Increments global hash variable %sum_xx(sum, sumsq, n, min, max) where
+#  xx = (kt, bb2t3, bb2t2, bb2t1, bb1t3, bb1t2, bb1t1, Vref, bb1ap1, bb1bb2ap2, bb2ap3, kttempcase,
+#	wintemp, tt8temp, Vpwr, sw1, sw2, pitch, roll, sog, cog, az, pnitemp, lat, lon, sog, var, kttemp )
+{
+	my ($d1, $d2, $ii);
+	my ($x, $y, $s);
+	my $kmin=0; my $kmax=5;  ## DEFINE VALID RANGE FOR KT READINGS
+	
+	#=========================
+	#-- ACCUM ONLY IF DRUM MEAS IS PRSENT--
+	#=========================
+	if ( $record{drum} != $missing && $record{kt} > $kmin && $record{kt} < $kmax ) {
+		$x = $record{drum}; 
+		$y = $record{kt};
+		## SCAN EACH VIEW FOR THE CURRENT DRUM ANGLE
+		foreach ( 0..$#view ) 
+		{
+			$d1 = $view[$_] - $drum_pointing_uncertainty;  $d2 = $view[$_] + $drum_pointing_uncertainty;  # sector limits
+			if ( $x >= $d1 && $x <= $d2 ) 
+			{
+				if($kv==1){printf $TMP "Accumulate kt, view=%.2f, kt=%.5f\n", $x, $y}
+				#printf "test Accumulate kt, view=%.2f, kt=%.5f\n", $x, $y;
+				#==================
+				# Put kt15 into in the correct bin
+				# Skip the first record in each view
+				# There are five variables in each view block (sum, sumsq, n, min, max)  #v2
+				#==================
+				$ii = $_ * 5;						# pointer to this view block  #v2
+				$sum_kt[$ii] +=   $y;					# sum
+				$sum_drum[$ii] += $x;					# sum
+				$ii++; $sum_kt[$ii] += ($y * $y);		# sum of squares
+				$sum_drum[$ii] += ($x * $x);			# sum of squares
+				$ii++; $sum_kt[$ii]++;					# count
+				$sum_drum[$ii]++;						# count
+				$ii++; $sum_kt[$ii] = minvalue($sum_kt[$ii], $y);	# min
+				$sum_drum[$ii] = minvalue($sum_drum[$ii], $x);		# min
+				$ii++; $sum_kt[$ii] = maxvalue($sum_kt[$ii], $y);	# max
+				$sum_drum[$ii] = maxvalue($sum_drum[$ii], $x);		# max
+				last;
+			}
+		}
+	}
+	#========================
+	# NOW FOR THE REST OF THE SCALARS
+	# @VARS = ('org', 'bb1t1', 'bb1t2', 'bb1t3', 'bb2t1', 'bb2t2', 'bb2t3', 'Vref', 'bb1ap1', 'bb1bb2ap2');
+	# @VARS = (@VARS, 'bb2ap3', 'kttempcase', 'wintemp', 'tt8temp', 'Vpwr', 'roll', 'pitch');
+	# @VARS = (@VARS,'az', 'pnitemp', 'lat', 'lon', 'cog', 'sog', 'var', 'kttemp');
+	#========================
+	foreach ( @VARS )
+	{
+		my $zstr = sprintf("\@s = %%sum_%s;  %%sum_%s = Accum (\$record{%s}, \@s);", $_, $_, $_);
+		eval $zstr;
+	}
+
+	#=======================
+	# SWITCH POSITIONS
+	# 
+	#=======================
+	$sum_switch{sw1} = $record{sw1};
+	$sum_switch{sw2} = $record{sw2};
+	if ( $record{sw1} != $missing && $sw1_last != $missing &&  
+		abs($record{sw1} - $sw1_last) > 0.2 ) {$sum_switch{changes1}++;}
+	if ( $record{sw2} != $missing && $sw2_last != $missing &&  
+		abs($record{sw2} - $sw2_last) > 0.2 ) {$sum_switch{changes2}++;}
+}
+
+
+#*************************************************************/
+sub Accum
+# Accum(%hash, $datum);   global: $missing
+{
+	my ($x, @a) = @_;
+	my %r = @a;
+	#printf("Accum : %.5f\n", $x);
+	if ( $x > $missing )
+	{
+		$r{sum} += $x;
+		$r{sumsq} += $x * $x;
+		$r{n}++;
+		$r{min} = minvalue($r{min}, $x);
+		$r{max} = maxvalue($r{max}, $x);
+		@a = %r;
+	}
+	return( @a );
+}
+#*************************************************************/
+sub ComputeStats
+# ComputeStats();
+#  xx = (drum, kt, bb2t3, bb2t2, bb2t1, bb1t3, bb1t2, bb1t1, Vref, bb1ap1, bb1bb2ap2, bb2ap3, kttempcase,
+#	wintemp, tt8temp, Vpwr, sw1, sw2, pitch, roll, sog, cog, az, pnitemp, lat, lon, sog, var, kttemp )
+{
+	my $i;
+	my ($mean, $stdev, $n, $x, $xsq);
+	
+	
+	#===================
+	# VIEW DEPENDENT ARRAYS
+	#===================
+	foreach ( 0..$#view )
+	{
+		$i = $_ * 5;  # start index, five scalars in accum #v2
+		# -- kt15 view data -----------			
+		( $samp_kt[$i], $samp_kt[$i+1], $samp_kt[$i+2], $samp_kt[$i+3], $samp_kt[$i+4] ) =
+			stats1 ( $sum_kt[$i], $sum_kt[$i+1], $sum_kt[$i+2], $sum_kt[$i+3], $sum_kt[$i+4], $Nsamp_min, $missing);	
+		# -- drumpos view data ---	
+		( $samp_drum[$i], $samp_drum[$i+1], $samp_drum[$i+2], $samp_drum[$i+3], $samp_drum[$i+4] ) =
+			stats1 ( $sum_drum[$i], $sum_drum[$i+1], $sum_drum[$i+2], $sum_drum[$i+3], $sum_drum[$i+4], $Nsamp_min, $missing);	
+		if($kv == 1 ) { printf $TMP "VIEW AVERAGES: i = %d, view = %.1f, drum=%.2f,  kt mn samp = %.4f\n", $_, $view[$_], $samp_drum[$i], $samp_kt[$i]}
+	}
+	
+	#====================
+	# SCALARS
+	# sub (mn, stdpcnt, n, min, max) = stats1(sum, sumsq, N, min, max, Nsamp_min);
+	#=====================
+# 		printf("  bb1t1:   %.4e, %.4e, %d, %.4e, %.4e\n", 
+# 			$sum_bb1t1{sum}, $sum_bb1t1{sumsq}, $sum_bb1t1{n}, $sum_bb1t1{min}, $sum_bb1t1{max});
+		foreach ( @VARS ) 
+	{
+		my $zz = sprintf( "( \$samp_\%s{mn}, \$samp_\%s{std}, \$samp_\%s{n}, \$samp_\%s{min}, \$samp_\%s{max}) =
+			stats1 ( \$sum_\%s{sum},  \$sum_\%s{sumsq},  \$sum_\%s{n},  \$sum_\%s{min},  \$sum_\%s{max}, \$Nsamp_min, \$missing );",
+			$_,$_,$_,$_,$_,$_,$_,$_,$_,$_);
+		eval $zz ;
+	}
+# 		printf("  bb1t1:   %.4e, %.4e, %d, %.4e, %.4e\n", 
+# 			$samp_bb1t1{mn}, $samp_bb1t1{std}, $samp_bb1t1{n}, $samp_bb1t1{min}, $samp_bb1t1{max});
+	#=====================
+	# COMPUTE BB TEMPERATURES
+	# skip bb2t3 because it is aq little high
+	#v3 050530 rmr --  I changed to averaging all three therms and the results are just a little better.
+	#   see notes in outward bound lab book for 050530
+	#=====================
+	my $ix;	
+	$bb1v=0; $n=0;
+	foreach $ix (@bb1therms) {
+		$str = sprintf "\$bb1v = \$bb1v + \$samp_bb1t%d{mn}; \$n++;", $ix;
+		eval $str;
+	}
+	$bb1v = $bb1v / $n;
+	
+	$bb2v=0; $n=0;
+	foreach $ix (@bb2therms) {
+		$str = sprintf "\$bb2v = \$bb2v + \$samp_bb2t%d{mn}; \$n++;", $ix;
+		eval $str;
+	}
+	$bb2v = $bb2v / $n;
+	
+	## NOTE: if Vref == 0 from setup file, then we use vadc(7)*2/1000 volts
+	if ( $Vref == 0 ) {  #v3.3 use $Vref flag
+		($bb1t) = BB_TempCal( $bb1v, $samp_Vref{mn}, $Rref );
+		($bb2t) = BB_TempCal( $bb2v, $samp_Vref{mn}, $Rref );
+	} else {
+		($bb1t) = BB_TempCal( $bb1v, $Vref, $Rref );
+		($bb2t) = BB_TempCal( $bb2v, $Vref, $Rref );
+	}	
+}
+#*************************************************************/
+sub BB_TempCal
+# (tempC) = BB_TempCal (vt, Vref, Rref);
+# vt = voltage of thermister circuit, volts
+#   this series will be scrubed of all bad data
+# Vref = reference voltage, fixed  volts
+# Rref = reference resistor, fixed
+# global $missing  $Tabs
+{
+	#printf"BB_TempCal: vt=$_[0], Vref=$_[1], Rref=$_[2]\n";
+	
+	if ( $_[0] == $missing ) { return ( $missing );  }
+	
+	my $rt = $_[2] * $_[0] / ( $_[1] - $_[0] ) ;
+	# % CORRECTION FOR SELF HEATING
+	# % From ysi spec, swelf heating in still air is 4 mW/C.
+	# % The thermistors are in highly conductive material inside the 
+	# % bb, so this number is a maximum.  It is probably much less.
+	# p = vt .* vt ./ rt;
+	# Tcorr = p ./ .004;
+	my $Tcorr = ( $_[0] * $_[0] / $rt ) / .004;
+
+	# YSI SUPER PRECISION THERMISTORS
+	# STEINHART-HART COMPUTATION
+	#-------------------
+	# COMPUTED FROM THE YSI46041 TABLE FOR 20-40 C
+	# beta = 1.025579e-03, 2.397338e-04, 1.542038e-07
+	#--------------------
+	# COMPUTED FOR 0--40 C
+	# Steinhart-Hart Fit for T from 0.0 to 40.0
+	# beta = 1.025579e-03, 2.397338e-04, 1.542038e-07
+	#---------------------
+	# beta = [1.025579e-03, 2.397338e-04, 1.542038e-07]';  % 20-40C
+	# # t2 = beta(1) + beta(2) .* vx + beta(3) .* vx .* vx .* vx;
+	#  T2 = 1 ./ t2 - 273.15;
+	my @beta = (1.0271173e-3, 2.394707e-4, 1.553299e-7); #  % old SH coefs.
+	if ( $rt <= 0 ) {return -999}
+	else {
+		my $y = log( $rt );
+		my $t2 = $beta[0] + $beta[1] * $y + $beta[2] * $y * $y * $y;
+		my $t = 1 / $t2 - $Tabs;
+		# % Subtract the overheating
+		$t = $t - $Tcorr;
+		return ( $t );
+	}
+}
+

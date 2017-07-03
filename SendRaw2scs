@@ -1,0 +1,30 @@
+#!/usr/bin/perl -w
+use IO::Socket;
+#I01 sw/$ LastDataRecord isar_raw
+my $chkold=0;
+
+while(1){
+my $str1=`LastDataRecord isar_avg`;
+chomp($str1);
+
+#my $str1=substr($str,21);
+#print"$str1\n";
+
+my $x=`echo $str1 | cksum`;
+my @x=split / /,$x;
+my $chk=$x[0];
+if($chk != $chkold){
+	$str1="\$WIROS ".$str1;
+my $sock = new IO::Socket::INET (
+        PeerAddr => '192.168.255.1',
+        PeerPort => '10002',
+        Proto => 'tcp',
+);
+die "Could not create socket: $!\n" unless $sock;
+print $sock "$str1\r\n";
+close($sock);
+$chkold=$chk;
+}
+sleep 2;
+}
+

@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+
+use IO::Socket;
+my $sock = new IO::Socket::INET (
+	LocalHost => '192.168.255.1',
+	LocalPort => '10005',
+	Proto => 'tcp',
+	Listen => 1,
+	Reuse => 1,
+);
+die "Could not create socket: $!\n" unless $sock;
+
+my $new_sock = $sock->accept();
+while(<$new_sock>) {
+	print $_;
+}
+close($sock);
+
+exit 0;

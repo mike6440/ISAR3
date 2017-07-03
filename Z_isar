@@ -1,0 +1,651 @@
+#!/usr/bin/expect --
+set PROGRAMNAME Z_isar 
+
+set VERSION 21
+set EDITDATE 150412
+# 
+#v1a when gps is missing do not insert
+#v2 101226 add headers, 'h', and AVG:
+#v3 110217 add lat & lon to error messages
+#v4 110315 rmr -- trap bad isar data lines
+#v5 110322 rmr -- After lots of time I found the bug in GetEmis(). Now this is a cleaned up
+#  and better program.
+#v6 110505 rmr -- On startup copy the su file into the data folder.
+#v7 110714 rmr -- Add a tilt sensor, tcm2.6
+#v8 110725 rmr -- substitute tilt into missing fields in isar
+#v9 110725 rmr -- add tty.UC232-A serial out
+#v10 110801 rmr -- combine daq3 and daq4 operation
+#v11 -- I had all sorts of problems with this during installation for and14. Now I will take the time
+#		to make it right.
+# 1. Remove all the TCM stuff. 
+# 2. 
+#v12 -- The Hub IP comes from the setup file.
+#v13 -- use eof to test for a crashed program
+#v14 -- use globals and eof reset. Also general clean up.
+#v15 -- make more robust
+#v16 141021 -- clean up unix stuff
+#v17
+  # √-- remove sbd stuff. Wite out to /tmp/sbd
+  # √- Make aliases around the new sbd routines
+  # √- see fixed GPS code and make  it work
+#v18
+  # √ review the su and this code to clean unneeded su stuff
+  # √ remove autoreboot stuff, now covered with crontab
+  # - check e_cal for run or cal mode
+#v19 150104
+  # √ remove -nonewline from puts to gpsraw.
+#v20 150203
+ #   edit for calibration run
+
+
+puts "
+RUN PROGRAM $PROGRAMNAME, VERSION $VERSION, EDITDATE $EDITDATE"
+
+set loguser 0;		#   test 0-quiet, 1=verbose
+log_user $loguser;
+
+		# SETUP FILE DEFINED
+set setupfile  [lindex $argv 0]
+puts "SETUP FILE FROM CMD LINE: $setupfile"
+		## SEE IF THE SETUP FILE EXISTS
+if [catch {open $setupfile} sufile] {
+	puts "Setup file open fails, exit 1"
+	exit 1
+} else {
+	puts "SETUP FILE $setupfile EXISTS"
+}
+
+global ISAR ISARPID ISARAV ISARAVPID
+global GPS GPSPID GPSAV GPSAVPID
+global infoname
+global e_cal
+
+#========================================================
+		# PROCEDURE TO CONNECT TO ISAR  v13
+#============================================================
+proc SpawnIsar { hub_url isarport} {
+	global ISAR ISARPID infoname
+	if {$isarport == 0} {
+		set ISARPID [spawn perl simulate/isar_simulator]
+		set ISAR $spawn_id 
+		write_info $infoname "SPAWN ISAR SIMULATE, spawn_id = $ISAR, pid = $ISARPID"
+	} else {
+		set str [spawn_kermit $hub_url $isarport]
+		set ISAR [lindex $str 0];    
+		set ISARPID [lindex $str 1];
+		write_info $infoname "SPAWN ISAR KERMIT, IP=$hub_url, port=$isarport, spawn_id=$ISAR, pid=$ISARPID"
+	}
+}
+
+
+#==================================
+# PROCEDURE TO CONNECT TO GPS  v13
+#==================================
+proc SpawnGPS { hub_url gpsport } {
+	global GPS GPSPID infoname 
+	if {$gpsport == 0} {
+		set GPSPID [spawn perl simulate/gps_simulator 1]
+		set GPS $spawn_id
+		write_info $infoname "GPS SIMULATE INPUT, spawn_id = $GPS,  pid = $GPSPID"
+		send_user "GPS SIMULATE\n"
+	} elseif { $gpsport == -1 } {
+		set GPSPID [spawn perl fixed_gprmc]
+		set GPS $spawn_id
+		write_info $infoname "GPS FIXED INPUT, spawn_id = $GPS,  pid = $GPSPID"
+		send_user "GPS FIXED\n"
+	} else {
+		set str [spawn_kermit $hub_url $gpsport]
+		set GPS [lindex $str 0];    set GPSPID [lindex $str 1];
+		write_info $infoname "GPS KERMIT spawn_id=$GPS, pid=$GPSPID"
+		send_user "GPS KERMIT spawn_id=$GPS, pid=$GPSPID\n"
+	}
+}
+
+
+#==========================================
+#   PROCEDURE TO START AVGISAR PROGRAM
+#==========================================
+proc SpawnAvgIsar { setupfile } {
+	global ISARAV  ISARAVPID infoname
+	set ISARAVPID [spawn perl avgisar $setupfile]
+	set ISARAV $spawn_id
+	write_info $infoname "SPAWN ISARAV spawn_id = $ISARAV,  pid=$ISARAVPID"
+			# WAIT FOR THE STARTUP PROMPT
+	set timeout 5
+	expect {
+				# REPLY FROM AVG PROGRAM
+		"avgisar--" {
+			send_user "AVGISAR is ready\n"
+		}
+	}
+}
+
+
+#=============================================
+# PROCEDURE TO START AVGGPS PROGRAM
+#============================================
+proc SpawnAvgGPS { setupfile } {
+	global GPSAV GPSAVPID infoname
+	set GPSAVPID [spawn perl avggps $setupfile]
+	set GPSAV $spawn_id;
+	write_info $infoname "SPAWN GPSAV spawn_id = $GPSAV,  pid=$GPSAVPID"
+	
+			# WAIT FOR THE STARTUP PROMPT
+	set timeout 5
+	expect {
+				# REPLY FROM AVG PROGRAM
+		"GPS--" {
+			send_user "AVGGPS is ready\n"
+		}
+	}
+}
+
+
+#===================================================================
+#   PROCEDURE TO COMPUTE LAT AND LON FROM GPS STRING
+# $s2 = gps raw string
+#  "\$GPRMC,235944,A,4922.9147,N,12418.9757,W,007.7,294.5,030609,019.2,E*61"
+#output
+# $so = "49.45645,-124.6785"
+#===================
+proc get_latlonstr {s2} {
+	global infoname
+	set g [split $s2 ,*]
+			## LATITUDE -- CHECK AS A GOOD NUMBER
+	set l [lindex $g 3];
+	if { ! [string is double $l] } {
+		#write_info $infoname "get_latlonstr: GPS lat string, $l, is not a f.p. number";
+		set lat -999
+	} else {
+		set l2 [expr int($l/100)]
+		set lat [expr $l2 + ($l - $l2*100)/60]
+		if { [string equal -nocase [lindex $g 4] S] } {set lat [expr -$lat] }
+		if { $lat < -90 || $lat > 90 } {
+			#write_info $infoname  "get_latlonstr: GPS lat out of range, set to missing";
+			set lat -999;
+		}
+	}
+	
+			## LONGITUDE
+	set l [lindex $g 5];
+	if { ! [string is double $l] } {
+		#write_info $infoname  "get_latlonstr: GPS lon string is not a f.p. number";
+		set lon -999
+	} else {
+		set l2 [expr int($l/100)]
+		set lon [expr $l2 + ($l - $l2*100)/60]
+		if { [string equal -nocase [lindex $g 6] W] } {set lon [expr -$lon] }
+		if { $lon <= -180 || $lon > 360 } {
+			#write_info $infoname  "get_latlonstr: GPS lon out of range, set to missing";
+			set lon -999;
+		}
+	}
+	
+			## SOG
+	set sog [lindex $g 7];
+	if { ! [string is double $sog] } {
+		#write_info $infoname  "get_latlonstr: GPS sog string is not a f.p. number";
+		set sog -999
+	} else {
+		if { $sog < 0 || $sog > 40 } {
+			#write_info $infoname  "get_latlonstr: GPS sog out of range, set to missing";
+			set sog -999;
+		}
+	}
+	
+			## COG
+	set cog [lindex $g 8];
+	if { ! [string is double $cog] } {
+		#write_info $infoname  "get_latlonstr: GPS cog string is not a f.p. number";
+		set cog -999
+	} else {
+		if { $cog < 0 || $cog > 360 } {
+			#write_info $infoname  "get_latlonstr: GPS cog out of range, set to missing";
+			set cog -999;
+		}
+	}
+
+			## VAR
+	set var [lindex $g 10];
+	if { ! [string is double $var] } {
+		#write_info $infoname  "get_latlonstr: GPS var string is not a f.p. number";
+		set var -999
+	} else {
+		if { [string equal -nocase [lindex $g 11] W] } {set var [expr -$var] } 
+		if { $var < -90 || $var > 90 } {
+			#write_info $infoname  "get_latlonstr: GPS var out of range, set to missing";
+			set var -999;
+		}
+	}
+
+	#===========
+			#OUTPUT STRING
+	#===========
+	set posstr [format "%.6f %.6f %.1f %.0f %.1f" $lat $lon $sog $cog $var]
+	return $posstr;
+}
+
+
+#===================================================================
+# 	PROCEDURE INSERT_GPS
+#input
+# $s1 = isar raw string
+# $s2 = gps raw string, NMEA GPRMC
+# #isn = isar serial number
+#  "\$GPRMC,235944,A,4922.9147,N,12418.9757,W,007.7,294.5,030609,019.2,E*61"
+#output
+# $so is the same as $s1 but with gps data inserted
+#=====================================================================
+proc insert_gps {s1 s2 isn} {
+	set insertgps 0;
+	if { $isn == 6 } {
+		set ilt 25;  set iln 29;
+	} else {
+		set ilt 30; set iln 34;
+	}
+	
+	#==========
+	# check isar for good lat and lon
+	#==========
+	set i [split $s1 ,*]
+	#LAT
+	set l [lindex $i $ilt];
+	if { ! [string is double $l] } {
+		set insertgps 1;
+	} elseif {$l < -90 || $l > 90} {
+		set insertgps 1;
+	}
+	
+	#LON
+	set l [lindex $i [expr $ilt + 1 ] ];
+	if { ! [string is double $l] } {
+		set insertgps 1;
+	} elseif {$l < -180 || $l > 360} {
+		set insertgps 1;
+	}
+	
+	#==================
+	# BAD ISAR POSITION, USE EXTERNAL GPS
+	#==================
+	if { $insertgps != 0 } {
+		set g [split [get_latlonstr $s2]]
+		
+		## LATITUDE
+		set lat [lindex $g 0]
+		## LONGITUDE
+		set lon [lindex $g 1]
+		## SOG
+		set sog [lindex $g 2]
+		## COG
+		set cog [lindex $g 3]
+		## VAR
+		set var [lindex $g 4];
+	
+		# REPLACE THE GPS -- Notice, the index numbers, ilt and iln, are 30 34 for isar04. For isar06 25 29.
+		set ir [lreplace $i $ilt $iln $lat $lon $sog $cog $var]		
+		# so is the output string
+		set s1 [join $ir ,]
+	}
+	return $s1
+}
+
+
+#====================================================================
+		# PROCEDURE WRITE_INFO
+		# input
+		#  fname = fullfile name towrite the info string
+		#  str=the string to write
+		# call:
+		# write_info "/tmp/info" "This is a test."
+#=====================================================================
+proc write_info {fname str} {
+	set str [timestamp -gmt -format "%Y%m%dT%H%M%SZ,"]$str
+#	set str "$tm,$str";
+	exec echo $str >> $fname
+#	set F [open $fname a]
+#	
+#	puts $F "$str" 
+#	close $F
+	return $str
+}
+
+
+#===========================================================================
+# PROCEDURE TO CONNECT TO A PORT USING KERMIT
+# input
+#	serialport = full path name for the serial port, e.g. /dev/tty.usbserial0
+#   baud = desired baud rate, e.g. 9600
+#============================================
+proc spawn_kermit {hub_url portnumber} {
+	global infoname
+			# START PROCESS -- KERMIT
+	set pid [spawn kermit]
+	expect {
+		timeout {send_user "KERMIT FAILS TO OPEN\n"; exit 1}
+		">>"
+	}
+			# OPEN THE PORT
+	send "set host $hub_url $portnumber\r"
+	expect ">>"
+	send "set tcp keepalive on 0\r\n"
+	expect ">>"
+	send "set tcp linger OFF\r\n"
+	expect ">>"
+	send "set tcp nodelay on\r\n"
+	expect ">>"
+	send "set telnet echo local\r\n"
+	expect ">>"
+			# this is important for using the rsr menu
+			# raw means send CR by itself, not CRLF and NOT CRNul
+	send "set telnet newline-mode nvt raw\r\n"
+	expect ">>"
+			# CONNECT 
+	send "connect\r"
+	expect {
+		timeout {send_user "TIMEOUT, NO CONNECT"; exit 1}
+		"Conn*---"  { }  #v15
+	}
+	set out $spawn_id;
+	lappend out $pid
+	return $out
+}
+
+#==================== END PROCEDURES =============================================
+
+exec echo "START ISAR3 [timestamp -gmt -format "%Y%m%d,%H%M%S"]" > /tmp/sbd
+
+		#============
+		## ISAR SERIAL NUMBER
+		#============
+spawn -noecho getsetupinfo $setupfile "ISAR SERIAL NUMBER"
+expect -re "(\.*)(\r)";
+set isarsn $expect_out(1,string)
+
+		#============
+		# DATAPATH
+		# We create a new info file each time we start the program.
+		#==============
+		## READ THE ISAR-RT OUT PATH
+spawn -noecho getsetupinfo $setupfile "ISAR-RT OUT PATH"
+expect -re "(\.*)(\r)";
+set datapath $expect_out(1,string)
+
+
+		# INFONAME
+set infoname "$env(DAQDATAFOLDER)/info.txt";
+send_user "INFONAME: $infoname\n";
+write_info $infoname "  ========== BEGIN PROGRAM $PROGRAMNAME ============="
+write_info $infoname "PROGRAM $PROGRAMNAME, Version $VERSION, Editdate $EDITDATE, Runtime [timestamp -gmt -format "%Y%m%d,%H%M%S"]"
+write_info $infoname  "ISAR SERIAL NUMBER: $isarsn"
+write_info $infoname "INFORMATION FILE: $infoname"
+write_info $infoname  "ISAR-RT OUT PATH: $datapath"
+
+		# PDS SERIAL HUB URL AND OFFSET
+spawn -noecho getsetupinfo $setupfile "SERIAL HUB URL"
+expect -re "(\.*)(\r)";
+set hub_url $expect_out(1,string)
+write_info $infoname  "SERIAL HUB URL: $hub_url"
+
+		# CALIBRATION FLAG
+spawn -noecho getsetupinfo $setupfile "CALIBRATION EMISSIVITY"
+expect -re "(\.*)(\r)";
+set e_cal $expect_out(1,string)
+if { $e_cal > 0 } { 
+	write_info $infoname "CALIBRATION EMISSIVITY = $e_cal, CAL MODE."
+	send_user "CALIBRATION EMISSIVITY = $e_cal, CAL MODE.\n"
+	send_user "Error -- needs to be run mode.\n"
+	exit 1;
+}
+
+write_info $infoname "CALIBRATION EMISSIVITY = $e_cal, RUN MODE."
+send_user "CALIBRATION EMISSIVITY = $e_cal, RUN MODE.\n"
+		## PLATFORM NAME
+spawn -noecho getsetupinfo $setupfile "PLATFORM NAME"
+expect -re "(\.*)(\r)";
+write_info $infoname  "PLATFORM NAME: $expect_out(1,string)"
+
+		## LOCATION ON PLATFORM
+spawn -noecho getsetupinfo $setupfile "LOCATION ON PLATFORM"
+expect -re "(\.*)(\r)";
+write_info $infoname  "LOCATION ON PLATFORM: $expect_out(1,string)"
+
+		## HEIGHT ABOVE SEA LEVEL
+spawn -noecho getsetupinfo $setupfile "HEIGHT ABOVE SEA LEVEL"
+expect -re "(\.*)(\r)";
+write_info $infoname  "HEIGHT ABOVE SEA LEVEL: $expect_out(1,string)"
+
+		## EXPERIMENT NAME
+spawn -noecho getsetupinfo $setupfile "EXPERIMENT NAME"
+expect -re "(\.*)(\r)";
+set expname $expect_out(1,string)
+write_info $infoname  "EXPERIMENT NAME: $expname"
+
+		## GEOGRAPHIC LOCATION
+spawn -noecho getsetupinfo $setupfile "GEOGRAPHIC LOCATION"
+expect -re "(\.*)(\r)";
+write_info $infoname  "GEOGRAPHIC LOCATION: $expect_out(1,string)"
+
+		# GPS FIXED LATITUDE
+spawn -noecho getsetupinfo $setupfile "GPS FIXED LATITUDE"
+expect -re "(\.*)(\r)";
+set fixedlat $expect_out(1,string)
+write_info $infoname  "GPS FIXED LATITUDE: $fixedlat"
+
+		# GPS FIXED LONGITUDE
+spawn -noecho getsetupinfo $setupfile "GPS FIXED LONGITUDE"
+expect -re "(\.*)(\r)";
+set fixedlon $expect_out(1,string)
+write_info $infoname  "GPS FIXED LONGITUDE: $fixedlon"
+
+		## GPS PORT
+		## -1 => no gps, use fixed values 
+spawn -noecho getsetupinfo $setupfile "GPS HUB COM NUMBER"
+expect -re "(\.*)(\r)";
+set gpsport $expect_out(1,string)
+write_info $infoname  "GPS HUB COM NUMBER: $gpsport"
+
+   # !! TO DO - use fixedlat and fixedlon
+set gpsstr [exec fixed_gprmc a]
+send_user "STARTUP GPS: $gpsstr\n"
+set glen [string length $gpsstr]
+set timegps [timestamp -gmt]
+
+		# OPEN GPS SERIAL PORTS
+SpawnGPS $hub_url $gpsport 
+send_user "GPS=$GPS, GPSPID=$GPSPID\n";
+
+		# OPEN AVG PROGRAMS
+SpawnAvgGPS  $setupfile 
+send_user "GPSAV=$GPSAV, GPSAVPID=$GPSAVPID\n";
+
+		## ISAR PORT
+spawn -noecho getsetupinfo $setupfile "ISAR HUB COM NUMBER"
+expect -re "(\.*)(\r)";
+set isarport $expect_out(1,string)
+write_info $infoname  "ISAR HUB COM NUMBER: $isarport"
+
+		#=================
+		# OPEN SET FILE NAMES AND NOTE TIME
+		#=================
+		# day0 = START JULIAN DAY
+set day0 [timestamp -gmt -format "%j"]
+write_info $infoname "start year day: $day0";
+		# day1 = current day used to detect a new day at midnight
+set day1 $day0
+
+		#=================
+		# WRITE TO ISAR RAW AND AVG FILE
+		# I01110304raw.txt
+		# I01110304avg.txt
+		#=================
+set fname [timestamp -gmt -format "%y%m%d"]
+set rwname "$datapath/isar_raw_$fname.txt";
+write_info $infoname  "ISAR RAW FILE: $rwname";
+set gpsrawname "$datapath/gps_raw_$fname.txt";
+write_info $infoname  "GPS RAW FILE: $gpsrawname";
+
+		# OPEN SERIAL PORTS
+SpawnIsar $hub_url $isarport 
+		# OPEN AVG PROGRAMS
+SpawnAvgIsar $setupfile 
+
+		#====================
+		# TIMING PARAMETERS
+		#====================
+		# SET dt0 SO THE FIRST AVG WILL BE TRANSMITTED
+# set dt0 [expr [timestamp -gmt] -100]
+set timeout 30		;# leave enough time for the scan drum to move
+
+		# =====================
+		# MAIN LOOP
+		# Wait for a string from isar
+		# Send the string to isar_avg program
+		#======================
+write_info $infoname "===== BEGIN MAIN LOOP ====="
+send_user "===== BEGIN MAIN LOOP =====\n"
+
+set timeisar [timestamp -gmt]
+		# COUNT THE NUMBER OF GOOD ISAR RECORDS RECEIVED
+set Nrecs 0
+
+if { $gpsport >= 0 } {
+	set timegps [expr [timestamp -gmt] - 100];	#set timegps so as to skip insert until a good gps.
+}
+
+		#=================
+		# EXPECT LOOP
+		#=================
+while 1 {
+			#=============================
+			# CHECK FOR A GAP IN THE AVG SBD TRANSMISSIONS
+			# IF TIME SINCE A GOOD TX > $txsecs, THEN SEND AN ERROR MESSAGE
+			#=============================
+	set dt [timestamp -gmt]
+			# CHECK FOR A NEW DAY -- NEW FILES
+	set day1 [timestamp -gmt -format "%j"]
+	if {$day1 != $day0} {
+		send_user "DAY CHANGE\r\n"
+		set day0 $day1
+		set fname [timestamp -gmt -format "%y%m%d"]
+		set rwname "$datapath/isar_raw_$fname.txt";
+		write_info $infoname "---NEW DAY---"
+		write_info $infoname "rwname = $rwname"
+		set gpsrawname "$datapath/gps_raw_$fname.txt";
+		write_info $infoname "gpsrawname = $gpsrawname"
+	}
+		
+			#================
+			# EXPECT FUNCTION -- WAITING FOR RESPONSE
+			# ===============
+	expect { 		
+		-i $ISAR 
+		"\\\$IS001*\\*00" {
+				#=========================
+				# $IS001 RAW DATA RECORD --
+				# v02 -- the new isar record begins with 
+				# $IS001,2010,01,01,00,50,35,  90.20, ...........,291.0,302.8*00
+				# the *00 is reserved for a check sum.
+				#==========================
+			set rawstr [string trimright $expect_out(0,string)]
+			set rawlen [string length $rawstr]
+			
+					## CHECK IF IT IS OF CORRECT SIZE v4
+			if { $rawlen > 200 && $rawlen < 240 } {
+						## CHOP OFF THE HEADER AND THE CHECKSUM TAIL v4
+				set strx [ string range $rawstr 7 end-3 ]
+				
+						# ARE THERE ANY BAD CHARACTERS see swmain/expect/misc/test_regexp.ex
+				if { [ regexp {[^0-9,\s\-\.\/TZ]+} $strx ] != 0 } {
+					send_user "BAD STR IN: $strx\n";
+				} else {
+					# increment Nrecs
+					set Nrecs [expr $Nrecs + 1];
+					set timeisar [timestamp -gmt];		#v1a time of the last good raw isar record
+			
+					#==========
+					# INSERT GPS FIXES
+					# Insert only if string length is okay and time is within about one minute and 
+					# if the isar position is bad, -999.
+					#============
+					if { $glen > 50 && [expr $timeisar - $timegps < 60] } {
+						set rawstr [insert_gps $rawstr $gpsstr $isarsn]
+					}
+							#=================
+							# SAVE TO RAW FILE
+							#=================
+					set F [open $rwname a 0600]
+					puts $F [timestamp -gmt -format "%Y,%m,%d,%H,%M,%S, "]$rawstr  ;#v8d
+					close $F
+							#===================
+							# SEND TO ISARAV AND ISARAV FOR RESPONSE
+							#===================
+					send -i $ISARAV "$rawstr\r\n"
+				}
+			}
+		}
+
+		
+		-i $ISARAV 
+ 		-re "<<(\[^>]*)>>" { send_user ">>$expect_out(1,string)\n" }
+ 		
+				#=======================
+				# AVERAGE RECORD FROM ISAR
+		# navg yyyy MM dd hh mm ss lat lon ssst corr T1 T2 k1 k2 ksea 
+		#ksky esea pitch stdpitch roll stdroll az var org orgmn orgmx sw1start 
+		#sw1end sw1chgs sw2start sw2end sw2chgs
+				#=======================
+ 		-re "(\\\$ISRAV.*#)\r" {
+ 			set timeout 10
+ 			set spawn_id $ISARAV
+ 			set avgstr $expect_out(1,string)
+			## PRINT TO TERMINAL
+ 			# AVG: $I0304,20101226,200000,47.60343,-122.28813,-999,-2.5,0.1,-1.5,0.0,0.00000,-999,-999,526,700,8.50,28.84,0.0442,01#
+ 			send_user "ISAR AVG: \$Ivvss yyyyMMdd hhmmss  lat       lon       sst ptch sdp roll sdr emis    ktsky sea bb1 bb2 T1   T2     ormv  sw\n";
+ 			send_user "ISAR AVG: $avgstr\r\n"
+ 			exec echo $avgstr > /tmp/sbd
+ 		}
+		
+			#============
+			#  GPS SECTION 
+			#=============
+			#  $GPRMC,000005,A,3000.3665,N,14455.5242,W,014.1,255.8,070111,012.8,E*67
+		-i $GPS
+		"\\\$GPRMC*\\*??" {
+			set gpsstr $expect_out(0,string);
+			set gpsstr [string trim $gpsstr ]
+			set glen [string length $gpsstr]
+			set timegps [timestamp -gmt] ;# record the time of the last gps
+			send -i $GPSAV "$gpsstr\r\n"
+					# SAVE TO RAW FILE
+			set F [open $gpsrawname a 0600]
+			puts $F [timestamp -gmt -format "%Y,%m,%d,%H,%M,%S, "]$gpsstr  ;#v19
+			close $F
+		}
+		
+		-i $GPSAV
+			-re "<<(GPSAV,\.*?)>>\r\n" {send_user "*** $expect_out(1,string)\n";}
+	
+			#=========== 
+			#  USER INPUT 
+			#=============
+		-i $user_spawn_id  
+		-re ".+" {
+			set userstr $expect_out(0,string)
+			#send_user $userstr
+					# QUIT & SEND SIGNOFF MESSAGE
+			if {[string match "*quit*" "<[string tolower $userstr]>"]} {
+				write_info $infoname "USER QUIT\n";
+				#sbdi "USER QUIT $expname" $SBD 2
+				exit 0;
+			}
+					# WRITE A HEADER LINE
+			if {[string match "*h*" "<[string tolower $userstr]>"]} {
+				send_user "PROGRAM $PROGRAMNAME, VERSION $VERSION, EDITDATE $EDITDATE\n";
+						#  >20101226,195812,  41,0,1, -2.5,-1.5, 125,  514,3393,3394,3392,2340,2340,2355, 47.603,-122.288, 0.1,   0
+				send_user " yyyyMMdd,hhmmss ormv sw0 sw1  ptch roll fgaz  kt b11mv b12  b13  b21  b22  b23   lat     lon     sog  cog \n";
+			}
+			exp_continue
+		}
+	}
+}
+

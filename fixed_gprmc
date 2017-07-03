@@ -1,0 +1,48 @@
+#!/usr/bin/perl -w
+#$GPRMC,235944,A,4922.9147,N,12418.9757,W,007.7,294.5,030609,019.2,E*61
+
+use lib "$ENV{MYLIB}";
+use perltools::MRtime;
+use perltools::MRutilities;
+
+
+while(1){
+	my $str='$GPRMC,';
+	my $tm=dtstr(now(),'short');
+	#print"$tm\n";
+	$str=$str.substr($tm,-6).',A,';
+
+
+	$setupfile = `cat tmp`;
+	my $d = FindInfo($setupfile,'GPS FIXED LATITUDE',': ');
+	my $s=''; if($d<0){$s='-'}
+	$d=abs($d); $x=int($d);
+	my $y = ($d-$x)*60;
+	$d = $x*100 + $y;
+	$str = $str.sprintf"%.4f,",$d;
+	if($s =~ /-/){$str=$str.'S,'}
+	else {$str=$str.'N,'}
+
+	$d = FindInfo($setupfile,'GPS FIXED LONGITUDE', ': ');
+	$s=''; if($d<0){$s='-'}
+	$d=abs($d); $x=int($d);
+	$y = ($d-$x)*60;
+	$d = $x*100 + $y;
+	$str = $str.sprintf"%.4f,",$d;
+	if($s =~ /-/){$str=$str.'W,'}
+	else {$str=$str.'E,'}
+
+	#20151102,053256
+	$str=$str.'000.0,000.0,';
+	$str=$str.substr($tm,6,2) . substr($tm,4,2) . substr($tm,2,2) . ',';
+
+	$str=$str.'000.0,W*';
+
+	$ck=NmeaChecksum($str);
+	$ck=$str.$ck;
+
+	print"$ck\n";
+	
+	if($#ARGV>=0){last}
+	else{sleep(1)}
+}

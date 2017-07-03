@@ -1,0 +1,47 @@
+#!/usr/bin/perl -w
+use IO::Socket;
+
+my $chkold=0;
+
+while(1){
+	my $str1=`LastDataRecord isar_avg`;
+	chomp($str1);
+
+		# CHECKSUM
+	my $x=`echo $str1 | cksum`;
+	my @x=split / /,$x;
+	my $chk=$x[0];
+
+		# NEW STRING
+	if($chk != $chkold){
+		
+			#ADD HEADER
+		$str1="\$WIROS ".$str1;
+			# MAKE CSV
+		$str1 =~ s/[, ]+/,/g;
+		print"$str1\n";
+		die;		
+		my $sock = new IO::Socket::INET (
+				PeerAddr => '192.168.255.1',
+				PeerPort => '10002',
+				Proto => 'tcp',
+		);
+		die "Could not create socket: $!\n" unless $sock;
+		print $sock "$str1\r\n";
+		close($sock);
+		$chkold=$chk;
+	}
+	sleep 2;
+}
+
+sub NmeaChecksum
+# $cc = NmeaChecksum($str) where $str is the NMEA string that starts with '$' and ends with '*'.
+{
+    my ($line) = @_;
+    my $csum = 0;
+    $csum ^= unpack("C",(substr($line,$_,1))) for(1..length($line)-2);
+    #return (sprintf("%2.2X",$csum));
+	return $csum
+}
+
+

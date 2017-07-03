@@ -1,0 +1,106 @@
+#!/usr/bin/perl -X
+
+my $fname = shift();
+my $str = shift();
+my $strout;
+
+if ( ! -f $fname ) {
+	print "file $fname does NOT exist\n";
+	exit 1;
+}
+
+#print "Search file $fname for string $str:\n";
+$strout = FindInfo($fname, $str,':');
+
+print "$strout\n";# This is necessary for the expect program
+exit 0;
+
+
+#===============================================================
+sub FindInfo
+# sub FindInfo; Removed from perltools on 160420. 
+# Search through a file line by line looking for a string
+# When the string is found, remove $i characters after the string.
+		# ==== CALLING ====
+# $strout = FindInfo( $file, $string, [$splt,  [$ic, [exit_on_fail]]] )
+		# ==== INPUT ===
+# $file is the file name with full path
+# $string is the search string (NOTE: THIS IS A REGEX STRING,
+# $splt (optional) is the substring for the split of the line. (typically :)
+# $ic (optional) is the number of characters to extract after the split.
+#    If $ic is negative then characters before the string are extracted.
+# $exit_on_fail is 1 for an exit if the string is not found, 0 to return "MISSING" 
+#
+		#EXAMPLE
+#    $fn='path/name' contains a line "SEARCH STRING: the answer"
+#  $str = FindInfo(filename_to_scan, 'SEARCH STRING');  print"$str\n";
+#  returns 'the answer'
+#
+#    $fn='path/name' contains a line "SEARCH STRING - the answer"
+#  $str = FindInfo(filename_to_scan, 'SEARCH STRING');  print"$str\n";
+#  replies "CANNOT FIND SEARCH STRING" and exits. Program stops here.
+#
+#    $fn='path/name' contains a line "SEARCH STRING - the answer"
+#  $str = FindInfo(filename_to_scan, 'SEARCH STRING','-');  print"$str\n";
+#  returns 'the answer'
+#
+#    $fn='path/name' contains a line "SEARCH STRING - the answer"
+#  $str = FindInfo(filename_to_scan, 'SEARCH STRING','-',4);  print"$str\n";
+#  returns 'answer'
+#
+#    $fn='path/name' contains a line "SEARCH STRING - the answer"
+#  $str = FindInfo(filename_to_scan, 'SEARCH STRING',':',0,0);  print"$str\n";
+#  returns 'MISSING'
+
+ 
+{
+	my @v = @_;
+		
+	my @cwds;
+	my ($fn, $strin, $splt, $strout, $ic, $str, $rec, $ix, $exit_on_fail);
+	$fn = $v[0];  #0
+			# SEARCH STRING, REMOVE HEAD AND TAIL BLANKS
+	$strin = $v[1]; $strin =~ s/^\s+//;  $strin =~ s/\s+$//;
+			# OPTIONS
+	$ic=0;
+	$exit_on_fail=1; 
+	$splt=':';
+	if ( $#v >= 2 ) { $splt = $v[2];
+		if ( $#v >= 3 ) { $ic = $v[3];
+			if ( $#v >= 4 ) { $exit_on_fail = $v[4] }
+		}
+	} 
+	$strout = 'MISSING';
+			# OPEN THE CAL FILE
+	open(Finfo, "<$fn") or die("!!FindInfo OPEN FILE FAILS, $strin\n");
+	$rec=0;
+			# READ EACH LINE
+	while ( <Finfo>) {
+		$rec++;
+				# LINE LIMIT
+		if ( $rec >= 1000 ) { 			#v14
+			close(Finfo);
+			print"CANNOT FIND $strin.\n"; last;   #v17
+		}
+		else {
+			#  SCAN THE LINE
+			# clean the line (a.k.a. record)
+			# find the first occurance of $splt.
+			chomp($str=$_);
+			if ( $str =~ /^$strin/ && $str =~ /$splt/) {
+				$j = index($str,$splt);
+				$c1 = substr($str,0,$j-1);
+				$strout = substr($str,$j+1);
+				$strout =~ s/^\s+//;  $strout =~ s/\s+$//;
+				close(Finfo);
+				return $strout;
+			}
+		}
+	}
+	# EOF AND NO STRING FOUND
+	close(Finfo);
+	print"CANNOT FIND $strin. exit_on_fail = $exit_on_fail\n"; 
+	if ($exit_on_fail == 1) { print"STOP.\n"; exit 1 }
+	return $strout;
+}
+
