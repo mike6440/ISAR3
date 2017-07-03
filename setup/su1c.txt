@@ -1,0 +1,97 @@
+THIS FILE: su1c.txt
+Editdate: 160920
+After complete maintenance, before AL43. New mirror, new window, LED repair, alignment check.
+ISAR SERIAL NUMBER: 01
+	#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
+CALIBRATION EMISSIVITY: 1
+		DATA FILES ---------------------
+ISAR-RT OUT PATH: data
+NO DATA WAIT TIME: 3600
+
+SERIAL HUB URL: 192.168.255.1
+	ISAR -- 10001, simulate=0
+ISAR HUB COM NUMBER: 10001
+
+	========================
+		QUALITY ERROR CHECK
+	========================
+MINIMUM EXPECTED LATITUDE: 5
+MAXIMUM EXPECTED LATITUDE: 90
+MINIMUM EXPECTED LONGITUDE: -180
+MAXIMUM EXPECTED LONGITUDE: 360
+MISSING VALUE: -999
+
+
+	# RUN
+SSST SLOPE : 1
+SSST OFFSET: 0
+CAL SSST SLOPE: 1
+CAL SSST OFFSET: 0
+
+	# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
+SCAN VIEW ANGLES: 280 325 45 135
+CAL SCAN VIEW ANGLES: 280 325 45 90
+	# INDEX -- (0,1,...) index.
+CALIBRATION VIEW POSITION : 3
+
+		# VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
+PROCESSING BB1 THERMISTORS: 1 2
+PROCESSING BB2 THERMISTORS: 1 2
+
+
+========================
+	EXPERIMENT INFO
+========================
+EXPERIMENT NAME: cal_i1_uw
+GEOGRAPHIC LOCATION: UW APL
+		two characters for a ship code
+PLATFORM NAME: UW
+LOCATION ON PLATFORM: BATH
+HEIGHT ABOVE SEA LEVEL (m): NA
+SHIP TYPE: NA
+SHIP NAME: NA
+CRUISE NAME: i1cal
+	port or starboard
+PLATFORM SIDE: na
+COMMENTS:
+  UW isar cal -- post cal after AL42
+END
+
+	=======================
+		BLACK BODY
+	=======================
+BLACK BODY EMISSIVITY : 1.0
+		## set Vref to 0 and the values from the 2*adc12-7 will be used.
+BB THERM VREF: 0
+BB TEMP Ref R: 10000
+	Resistances from testing with precision resistances. See notes 090909.
+BB RESISTORS: 10000, 10000, 10000, 10000, 10000, 10000
+	# Rref for wintemp and tt8temp
+APPERATURE THERM REF RESISTOR: 10000
+REF VOLTAGE FOR 12 BIT ADC: 4.0928
+	# Rref2 for four ysi apperature therms
+	## ISAR-01: 9995 9984 9997 9997
+	## ISAR-04: 10000 10000 10000 10000
+APPERATURE THERMS REF RESISTANCES: 10000 10000 10000 10000
+	========================
+	ISAR
+	========================
+	Verbose mode prints out test messages and data.  VERBOSE = 1, NOT VERBOSE = 0
+	avgisar.pl makes a file called data/tmp.txt.
+VERBOSE MODE: 0
+	## Specifics on the Instrument
+	## isar01 : 01, 4832, kt15_filter_15854832.dat, I01V0555.txt
+	## isar04 : 04, 5339, kt15_filter_15855339.dat, I04V0355.txt
+KT15 SERIAL NUMBER: 4832
+KT15 FILTER FILE: kt15/kt15_filter_15854832.txt
+ISAR AVERAGING TIME (sec): 600
+SEA EMISSIVITY (UNCORRECTED): 0.9870975
+APERATURE EMISSIVITY : 0.95
+MAXIMUM NUMBER OF AVERAGES (Set to 1e20 for final run) : 1e20
+MIN SAMPLES FOR AVG: 2
+SELF-HEAT FLAG: 1
+
+
+========================
+	END SETUP FILE
+========================

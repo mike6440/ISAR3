@@ -1,0 +1,112 @@
+# BASH SETUP FOR ISAR3
+# edit 20170618T235048Z
+
+export PS1='\w/$ '
+export EDITOR="vi"
+alias Top="top -u -s5"
+alias Date='date -u "+%Y %m %d %H %M %S Z"'
+alias ll="ls -l"
+
+#  		ISAR S/N 
+##export ISARSN="04";
+export DAQFOLDER="$DAQPATH/ISAR3"
+export DAQSWFOLDER="$DAQFOLDER/sw"
+export DAQDATAFOLDER="$DAQFOLDER/data"
+alias gtdaq="cd $DAQSWFOLDER"
+
+echo $PATH | grep -q -s /opt/local/bin
+if [ $? -eq 1 ] ; then
+    PATH=$PATH\:/opt/local/bin\:/opt/local/sbin
+    export PATH
+fi
+
+echo $PATH | grep -q -s $DAQSWFOLDER
+if [ $? -eq 1 ] ; then
+    PATH=$PATH\:$DAQSWFOLDER\:.
+    export PATH
+fi
+
+	# SETUP FILE NAME
+export SETUPFILE=$DAQSWFOLDER"/setup/su.txt"
+
+# TEST CALLS
+alias I='cd $DAQSWFOLDER; 	./term_to_isar $SETUPFILE'
+alias N='cd $DAQSWFOLDER; 	./term_to_sbd  $SETUPFILE'
+alias P='cd $DAQSWFOLDER; 	./term_to_gps  $SETUPFILE'
+
+		# CHECK DATA
+isaravg () {
+	cd $DAQSWFOLDER;
+	xx=`LastDataFolder isar_avg`
+	head -1 $xx
+	tail -f $xx
+}
+gpsavg () {
+	cd $DAQSWFOLDER;
+	xx=`LastDataFolder gps_avg`
+	head -1 $xx
+	tail -f $xx
+}
+		# RAW
+gpsraw () {
+	cd $DAQSWFOLDER;
+	xx=`LastDataFolder gps_raw`
+	tail -f $xx
+}
+isarraw () {
+	cd $DAQSWFOLDER;
+	xx=`LastDataFolder isar_raw`
+	tail -f $xx
+}
+	# SCREEN
+alias isscreen='echo "CHECK FOR A SCREEN"; screen -ls'
+alias gtscreen='echo "GO TO SCREEN"; screen -S ISAR -d -r'
+alias gtdaq='cd $DAQSWFOLDER';
+
+	# RUN CALLS
+alias G='cd $DAQSWFOLDER;  Z_isar `cat tmp`'
+alias Gc='cd $DAQSWFOLDER; Z_isarcal `cat tmp`'
+
+		#START SCREEN
+Startisar () {
+	KillScreen
+	cd $DAQSWFOLDER; ./PrepareForRun; export RUNSETUPFILE=`cat tmp`;
+	crontab $DAQSWFOLDER/tools/crontab_isar3.txt
+	screen -S ISAR -d -m -c $DAQSWFOLDER/tools/screenrc_isar.txt
+	screen -S ISAR -p 1 -X stuff "G$(printf \\r)"
+	isscreen
+}
+
+	#STOP DATA COLLECTION SCREEN
+alias Stopisar="KillScreen; Stopcron; Cleanupisar;"
+
+		#START CALIBRATION
+Startisarcal () {
+	KillScreen
+	cd $DAQSWFOLDER;
+	./PrepareForRun;
+	Gc;
+}
+
+	#START AND STOP CRONTAB
+alias Startcron="crontab DAQSWFOLDER/tools/crontab_isar3.txt"
+alias Stopcron="crontab -r"
+
+
+#		PERL LIBRARY =============================
+[ -d $HOME/Dropbox ] \
+	&& export DAQLIB="$HOME/Dropbox/swmain/perl" \
+	|| export DAQLIB="$HOME/swmain/perl"
+export MYLIB=$DAQLIB
+
+	# KERMIT RC =====================
+echo "prompt k>>" > ~/.kermrc
+
+	# MONITOR PROGRESS
+alias isarsbd="tail -f /tmp/sbd 2>/dev/null"
+alias sbdlog="tail -f ../data/sbdlog"
+
+cd $DAQSWFOLDER
+
+alias Help="less $DAQSWFOLDER/help.txt"
+

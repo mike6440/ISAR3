@@ -1,0 +1,17 @@
+#command: crontab $DAQFOLDER/tools/crontab_isar3.txt
+# From bashrc, export DAQPATH="$HOME/swmain/apps"
+
+# crontab -e to use default editor
+# EDITOR="nano" crontab -e # to define the editor (nano,vi,vim)
+
+#To use my bashrc stuff
+MAILTO=""
+BASH_ENV="$HOME/.bashrc"
+SHELL=/bin/bash
+
+#    SBD transmit
+26,56 * * * * $DAQPATH/ISAR3/sw/sbd_transmit >> $DAQPATH/ISAR3/data/sbdlog
+
+#    Check and reboot
+14 * * * * $DAQPATH/ISAR3/sw/UpdateDaq >> $DAQPATH/ISAR3/data/daqlog
+

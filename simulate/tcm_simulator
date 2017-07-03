@@ -1,0 +1,59 @@
+#! /usr/bin/perl
+#tcm_simulator.pl
+# edit date: 11 07 14 15 50 z
+
+my $update = 1;
+
+$fin = $ENV{MYDAQPATH}.'simulate/tcm.txt';
+
+if ( ! -f $fin ) {
+	printf"Current path = %s",`pwd`;
+	printf"File %s does NOT exist\n",$fin;
+	die;
+}
+
+my ($then, $now);
+$then = $now = now();
+my $irec = 0;
+
+#110107,000018,$GPRMC,000015,A,3000.3609,N,14455.5704,W,014.4,262.4,070111,012.8,E*66
+while (1) {
+	$irec = 0;
+	open(F,"<$fin") or die;
+	while (<F>) {
+		chomp( $str = $_);
+		# STRIP OFF THE BEGINNING TIME.
+		@wds = split(/\$/, $str);
+		$str=$wds[1];
+		print"\$$str\r\n";
+		
+		## PAUSE A FEW SECONDS
+		sleep($update);
+	}
+	print"Starting over\n";
+	close F;
+}
+#*************************************************************/
+sub now
+{
+# Get gmt time which uses the computer's time zone and daylight savings state,
+# then use $timezone to put the time into local standard time.
+#v101 060629 rmr -- start config control
+	my $tm;
+	use Time::gmtime;
+	$tm = gmtime;	#gmtime 	# CURRENT DATE 
+	my $nowsec = datesec($tm->year+1900, $tm->mon+1, $tm->mday, $tm->hour, $tm->min, $tm->sec);
+	return ( $nowsec);
+}
+
+#*************************************************************/
+sub datesec 
+# Convert yyyy,Mm,dd,hh,mm,ss to epoch secs
+#v101 060629 rmr -- start config control
+#v102 060629 rmr -- add use command
+{
+	use Time::Local;		# v102 use Time module
+	my $dtsec;
+	$dtsec = timelocal($_[5], $_[4], $_[3], $_[2], $_[1]-1, $_[0]-1900);
+	return ($dtsec);
+}

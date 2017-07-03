@@ -1,0 +1,145 @@
+THIS FILE: su1.txt
+ ANDROMEDA LEADER CRUISE AL46  
+Editdate: 161007
+ISAR SERIAL NUMBER: 01
+		DATA FILES ---------------------
+ISAR-RT OUT PATH: data
+NO DATA WAIT TIME: 3600
+
+COMMENTS:
+  AL46 prep
+  Maintenance. New mirror. Clean after al43-44.
+  i1cal_161006
+END
+
+	========================
+		HUB ADDRESS AND PORTS
+		PDS default: 192.168.255.1 (sometimes ...3)
+	========================
+SERIAL HUB URL: 192.168.255.1
+		ISAR -- 10001, simulate=0
+ISAR HUB COM NUMBER: 10001
+		GPS -- 10003, Fixed=-1, simulate=0
+GPS HUB COM NUMBER: 10003
+		MODEM -- 10004, no tx = 0
+SBD HUB COM NUMBER: 10004
+
+		# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
+SCAN VIEW ANGLES: 280 325 45 135
+		#CAL EMIS: 0 = operation,  ~=1 = calibration mode
+CALIBRATION EMISSIVITY: 0
+SSST SLOPE : 1.0199
+SSST OFFSET: -0.0615
+	#Cal 1410approx   1.0972  -0.1397
+	#Cal 150206  1.06917  -0.08650
+	#Cal 150702  1.0001   -0.194
+	#Cal 151103  1.0701    0.1974
+    	#Cal 160406  1.0319   -0.0004
+	#Cal 161006  1.0199   -0.0615
+KT15 SERIAL NUMBER: 4832
+KT15 FILTER FILE: kt15/kt15_filter_15854832.txt
+
+
+	# CALIBRATION
+CAL SSST SLOPE: 1
+CAL SSST OFFSET: 0
+CAL SCAN VIEW ANGLES: 280 325 45 90
+
+		# VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
+PROCESSING BB1 THERMISTORS: 1 2
+PROCESSING BB2 THERMISTORS: 1 2
+
+	=======================
+		BLACK BODY
+	=======================
+BLACK BODY EMISSIVITY : 1.0
+		## set Vref to 0 and the values from the 2*adc12-7 will be used.
+BB THERM VREF: 0
+BB TEMP Ref R: 10000
+		Resistances from testing with precision resistances. See notes 090909.
+BB RESISTORS: 10000, 10000, 10000, 10000, 10000, 10000
+		# Rref for wintemp and tt8temp
+APPERATURE THERM REF RESISTOR: 10000
+REF VOLTAGE FOR 12 BIT ADC: 4.0928
+		# Rref2 for four ysi apperature therms
+		## ISAR-01: 9995 9984 9997 9997
+		## ISAR-04: 10000 10000 10000 10000
+APPERATURE THERMS REF RESISTANCES: 10000 10000 10000 10000
+
+
+	=======================
+		CALIBRATION PARAMETERS
+	=======================
+		# INDEX -- (0,1,...) index.  Use for calibration case
+CALIBRATION VIEW POSITION : 3
+
+	========================
+		EXPERIMENT INFO
+	========================
+EXPERIMENT NAME: AL46
+GEOGRAPHIC LOCATION: BENICIA-JP
+		two characters for a ship code
+PLATFORM NAME: AL
+LOCATION ON PLATFORM: RAILING
+HEIGHT ABOVE SEA LEVEL M: 30
+SHIP TYPE: CAR CARRIER
+SHIP NAME: ANDROMEDA LEADER
+CRUISE NAME: AL46
+	port or starboard
+PLATFORM SIDE: PORT
+
+
+	========================
+		QUALITY ERROR CHECK
+	========================
+MINIMUM EXPECTED LATITUDE: 2
+MAXIMUM EXPECTED LATITUDE: 90
+MINIMUM EXPECTED LONGITUDE: -180
+MAXIMUM EXPECTED LONGITUDE: 360
+MISSING VALUE: -999
+
+
+
+	========================
+		GPS SETUP
+		NOTE: Use the Garmin-supplied Windows program to set the 17x for
+		9600 baud, 1-sec output, GPRMC only string.
+	========================
+GPS MODEL NUMBER: GPS17X
+GPS SERIAL NUMBER: ???
+GPS MIN SAMPLES FOR AVG: 3
+GPS AVERAGING TIME: 120
+	========================
+		FIXED POSITION -- NO GPS
+		(hub port=-1)
+	========================
+GPS FIXED LATITUDE: 47.60329
+GPS FIXED LONGITUDE: -122.28797
+		Magnetic variation, + = East of true
+GPS FIXED VARIATION: 18.1
+
+GPS COMMENTS
+  The receiver is the GPS17X by Garmin.
+END
+
+
+	========================
+		ISAR
+	========================
+		Verbose mode prints out test messages and data.  VERBOSE = 1, NOT VERBOSE = 0
+		avgisar.pl makes a file called data/tmp.txt.
+VERBOSE MODE: 0
+		## Specifics on the Instrument
+		## isar01 : 01, 4832, kt15_filter_15854832.dat, I01V0555.txt
+		## isar04 : 04, 5339, kt15_filter_15855339.dat, I04V0355.txt
+ISAR AVERAGING TIME SEC: 600
+SEA EMISSIVITY UNCORRECTED: 0.9870975
+APERATURE EMISSIVITY : 0.95
+MAXIMUM NUMBER OF AVERAGES: 1e20
+MIN SAMPLES FOR AVG: 2
+SELF-HEAT FLAG: 1
+
+
+	========================
+		END SETUP FILE
+	========================
