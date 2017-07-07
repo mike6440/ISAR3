@@ -1,7 +1,11 @@
-THIS FILE: su4_al45.txt --- RUN
-Editdate: 160824
+THIS FILE: su4.txt --- RUN
+Editdate: 170705
 ISAR SERIAL NUMBER: 04
-		DATA FILES ---------------------
+
+#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
+CALIBRATION EMISSIVITY: 0
+
+# DATA FILES 
 ISAR-RT OUT PATH: data
 
 	========================
@@ -9,13 +13,12 @@ ISAR-RT OUT PATH: data
 		PDS default: 192.168.255.1 (sometimes ...3)
 	========================
 SERIAL HUB URL: 192.168.255.1
-
 		ISAR -- 10001, simulate=0
-ISAR HUB COM NUMBER: 10001
+ISAR HUB COM NUMBER: 10003
 		GPS -- 10003, Fixed=-1, simulate=0
-GPS HUB COM NUMBER: 10003
+GPS HUB COM NUMBER: 1
 		MODEM -- 10004, Not connected=-1, simulate=0
-SBD HUB COM NUMBER: 10004
+SBD HUB COM NUMBER: 0
 
 	=======================
 		OPERATIONAL PARAMETERS
@@ -25,9 +28,11 @@ SBD HUB COM NUMBER: 10004
 	# i04cal_1606       1.0039 / 0.100
 SSST SLOPE : 1.0039
 SSST OFFSET: 0.100
-	# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
+
+# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
 SCAN VIEW ANGLES: 280 325 45 135
-	# CALIBRATION
+
+# CALIBRATION
 CAL SSST SLOPE: 1
 CAL SSST OFFSET: 0
 	# VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
