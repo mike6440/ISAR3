@@ -8,21 +8,21 @@ CALIBRATION EMISSIVITY: 0
 # DATA FILES 
 ISAR-RT OUT PATH: data
 
-	========================
-		HUB ADDRESS AND PORTS
-		PDS default: 192.168.255.1 (sometimes ...3)
-	========================
+#	========================
+#		HUB ADDRESS AND PORTS
+#		PDS default: 192.168.255.1 (sometimes ...3)
+#	========================
 SERIAL HUB URL: 192.168.255.1
-		ISAR -- 10001, simulate=0
-ISAR HUB COM NUMBER: 10003
-		GPS -- 10003, Fixed=-1, simulate=0
-GPS HUB COM NUMBER: 1
-		MODEM -- 10004, Not connected=-1, simulate=0
-SBD HUB COM NUMBER: 0
+		#ISAR -- 10001, simulate=0
+ISAR HUB COM NUMBER: 10001
+		#GPS -- 10003, Fixed=-1, simulate=0
+GPS HUB COM NUMBER: 10003
+		#MODEM -- 10004, Not connected=-1, simulate=0
+SBD HUB COM NUMBER: 10004
 
-	=======================
-		OPERATIONAL PARAMETERS
-	=======================
+	#=======================
+	#	OPERATIONAL PARAMETERS
+	#=======================
 	# RUN
 	# i04cal_141108_apl 1.0033 / 0.0837
 	# i04cal_1606       1.0039 / 0.100
