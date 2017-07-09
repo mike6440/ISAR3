@@ -3,7 +3,7 @@
 # crontab -e to set this cron job
 #To use my bashrc stuff
 #MAILTO=""
-#BASH_ENV="$HOME/.bashrc"
+#BASH_ENV="$HomePath/.bashrc"
 #SHELL=/bin/bash
 #    SBD transmit
 #26,56 * * * * $DAQSWFOLDER/sbd_transmit >> $DAQDATAFOLDER/sbdlog
@@ -13,7 +13,7 @@
 #v1 150629
 #v2 160211
 version="v11 160212"
-#export DAQFOLDER="$HOME/swmain/apps/ISAR3"
+#export DAQFOLDER="$HomePath/swmain/apps/ISAR3"
 #export DAQSWFOLDER=$DAQFOLDER"/sw"
 #export DAQLIB=$DAQFOLDER"/tools"
 #export MYLIB=$DAQLIB

@@ -16,7 +16,7 @@ use perltools::MRutilities;
 use perltools::MRtime;
 
 	## DATA PATH
-my $datapath="$ENV{HOME}/swmain/apps/ISAR3/data";
+my $datapath="$ENV{HomePath}/swmain/apps/ISAR3/data";
 print"data path = $datapath\n";
 
 print"

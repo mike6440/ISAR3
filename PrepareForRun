@@ -3,6 +3,7 @@
 # Prepare to run an experiment
 # folders::
 #  $HOME/
+#    [Dropbox/} optional
 #		swmain/
 #			apps/
 #				data/
@@ -23,7 +24,7 @@ use perltools::MRtime;
 use perltools::MRutilities;
 
 
-print"home = $ENV{HOME}\n";
+print"home = $ENV{HomePath}\n";
 print"data = $ENV{DAQDATAFOLDER}\n";
 
 $setupfile=$ENV{SETUPFILE};
