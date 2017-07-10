@@ -694,20 +694,16 @@ sub ReadNextRecord
 			if ( $vx < 3000 && $vx > 2000 ) {$vx = $vx * 2 / 1000}
 			elsif ( $vx < 3700 && $vx > 3000 ) {$vx = $vx * 15 / 10000}
 			else {$vx = $missing}
+			
+			#v21, digital $dat[20+$ioffset],   analog $dat[4+$ioffset], #analog if #v<=20
+			#v22, use the su.txt file to choose analog or digital
+			if($KtDigFlag==1){$ktoff=20}else{$ktoff=4} # v22 digital or analog position
 		
 			%record = (
 				dt => now(),			# the actual record time is the DAQ time
 				drum => $dat[2+$ioffset],
 				org => $dat[3+$ioffset],
-				#  -----------
-				#v21, digital $dat[20+$ioffset],   analog $dat[4+$ioffset], #analog if #v<=20
-				#v22, use the su.txt file to choose analog or digital
-				if(KtDigFlag==1){
-					kt => $dat[20+$ioffset], #digital
-				}else{
-					kt => $dat[4+$ioffset], #analog
-				}
-				#-----------
+				kt => $dat[$ktoff+$ioffset], #v22
 				bb2t3 => $dat[5+$ioffset],
 				bb2t2 => $dat[6+$ioffset],
 				bb2t1 => $dat[7+$ioffset],

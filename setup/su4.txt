@@ -15,11 +15,11 @@ ISAR-RT OUT PATH: data
 #	========================
 SERIAL HUB URL: 192.168.255.1
 		#ISAR -- 10001, simulate=0
-ISAR HUB COM NUMBER: 10003
+ISAR HUB COM NUMBER: 10001
 		#GPS -- 10003, Fixed=-1, simulate=0
-GPS HUB COM NUMBER: 1
+GPS HUB COM NUMBER: 10003
 		#MODEM -- 10004, Not connected=-1, simulate=0
-SBD HUB COM NUMBER: 0
+SBD HUB COM NUMBER: 10004
 
 	#=======================
 	#	OPERATIONAL PARAMETERS
