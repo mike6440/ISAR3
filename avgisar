@@ -34,6 +34,8 @@ my $EDITDATE = '160704';  #'160611';
 #v20 -- new kt15, output rad and amp values
 #v21 -- Compute ssst using the RAD output.
 #     -- Note: go to !! to choose between analog or digital kt15. 
+#v22  -- Add KtDigFlag to choose digital or analog (i04 uses digital)
+
 use lib $ENV{DAQLIB};
 use perltools::MRtime;
 use perltools::MRutilities;
@@ -105,6 +107,10 @@ POINT OF CONTACT: Michael Reynolds, michael\@rmrco.com\n";
 
 $expname = FindInfo($setupfile,'EXPERIMENT NAME', ': ');
 $header = $header."EXPERIMENT NAME: $expname\n";
+
+#v22 KT DIGITAL FLAG
+$KtDigFlag = FindInfo($setupfile,'KT DIGITAL FLAG', ': ');
+$header = $header."KT DIGITAL FLAG: $KtDigFlag\n";
 
 $isarsn = FindInfo($setupfile,'ISAR SERIAL NUMBER', ': ');
 $header = $header."ISAR SERIAL NUMBER: $isarsn\n";
@@ -693,10 +699,14 @@ sub ReadNextRecord
 				dt => now(),			# the actual record time is the DAQ time
 				drum => $dat[2+$ioffset],
 				org => $dat[3+$ioffset],
-				# !! -----------
+				#  -----------
 				#v21, digital $dat[20+$ioffset],   analog $dat[4+$ioffset], #analog if #v<=20
-				kt => $dat[4+$ioffset], #analog
-				#kt => $dat[20+$ioffset], #digital
+				#v22, use the su.txt file to choose analog or digital
+				if(KtDigFlag==1){
+					kt => $dat[20+$ioffset], #digital
+				}else{
+					kt => $dat[4+$ioffset], #analog
+				}
 				#-----------
 				bb2t3 => $dat[5+$ioffset],
 				bb2t2 => $dat[6+$ioffset],

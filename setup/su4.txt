@@ -2,6 +2,7 @@ THIS FILE: su4.txt --- RUN
 Editdate: 170705
 ISAR SERIAL NUMBER: 04
 
+
 #CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 0
 
@@ -28,6 +29,7 @@ SBD HUB COM NUMBER: 0
 	# i04cal_1606       1.0039 / 0.100
 SSST SLOPE : 1.0039
 SSST OFFSET: 0.100
+KT DIGITAL FLAG: 1
 
 # !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
 SCAN VIEW ANGLES: 280 325 45 135
