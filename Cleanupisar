@@ -5,7 +5,7 @@
 	#=================
 $usr=`whoami`;
 chomp($usr);
-@removelist=("avggps","Z_prp","avgprp","kermit","expect","perl");
+@removelist=("avgisar","avggps","Z_prp","avgprp","kermit","expect","perl");
 foreach $xx (@removelist){
 	$cmd="ps -u $usr -o pid,command | grep \"$xx\"";
 	#print"test 1 cmd = $cmd\n";
@@ -18,9 +18,12 @@ foreach $xx (@removelist){
 			#print"test 3 $pscmd\n";
 		} else {
 			#print"test 4 $pscmd\n";
+			$pscmd =~ s/^[\s\t]+//;
+			$pscmd =~ s/\s+$//;
 			@d=split/[ ]+/,$pscmd;
+			#$i=0;foreach $str (@d){print"$i : $str\n"; $i++}
 			$cmd="kill -9 $d[0]";
-			#print"test 5 cmd = $cmd\n";
+			#print"cmd = $cmd\n";
 			`$cmd`;
 		}
 	}

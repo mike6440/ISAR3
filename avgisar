@@ -280,6 +280,7 @@ use constant NO => 0;
 use constant PI => 3.14159265359;
 
 @sum_kt = ();
+@sum_ktrad = ();  #v22
 $record{drum}=$missing;
 $Lastdrum = $missing;   # initialize the prior drum position
 $sw1_last = $missing;
@@ -395,26 +396,40 @@ while ( 1 ) {
 		# $ttr = reference to the planck table temperature, from the MakeRadTable_planck() function.
 		# $rtr = ditto for radiance.
 		# $fhTMP = IO::File handle for the TMP file.
-		@x = ( $bb1t, $bb2t, $samp_kt[$bb1view * 5], $samp_kt[$bb2view * 5], $samp_kt[$seaview * 5], $samp_kt[$skyview * 5],
-			$view[3], $samp_pitch{mn}, $samp_roll{mn}, $e_sea_0, $e_bb, $Acorr, $CalOffset, $kv, $missing, $ttr, $rtr, $TMP);
-		#print"test compute sst, x = @x\n";
-		
+		#v22
+		if($KtDigFlag == 1){
+			@x = ( $bb1t, $bb2t, $samp_ktrad[$bb1view * 5], $samp_ktrad[$bb2view * 5], $samp_ktrad[$seaview * 5], $samp_ktrad[$skyview * 5],
+				$view[3], $samp_pitch{mn}, $samp_roll{mn}, $e_sea_0, $e_bb, $Acorr, $CalOffset, $kv, $missing, $ttr, $rtr, $TMP);
+		}else{
+			@x = ( $bb1t, $bb2t, $samp_kt[$bb1view * 5], $samp_kt[$bb2view * 5], $samp_kt[$seaview * 5], $samp_kt[$skyview * 5],
+				$view[3], $samp_pitch{mn}, $samp_roll{mn}, $e_sea_0, $e_bb, $Acorr, $CalOffset, $kv, $missing, $ttr, $rtr, $TMP);
+		}
 		($T_skin, $T_uncorr, $T_corr, $e_sea) = ComputeSSST( @x );
-		#printf"T_skin = %.3f, T_corr=%.3f, T_uncorr=%.3f\n", $T_skin, $T_corr, $T_uncorr;
-		#printf"kt1=1000*$samp_kt[$bb1view*5]   kt2=1000*$samp_kt[$bb2view*5]\n";
 		
 		#=========================
 		# AVG OUTPUT
 		#=========================
 		# navg yyyy MM dd hh mm ss lat lon ssst corr T1 T2 k1 k2 ksea ksky esea pitch stdpitch roll stdroll az var org orgmn orgmx sw1start sw1end sw1chgs sw2start sw2end sw2chgs
-		$str = sprintf "%d %s %.5f %.5f %.3f %.3f %.3f %.3f %.1f %.1f %.1f %.1f %.5f %.1f %.1f %.1f %.1f %.0f %.0f %.1f %.1f %.1f %d %d %d %d %d %d",
-			$Nsamp, dtstr($dt_samp,'ssv'), $samp_lat{mn}, $samp_lon{mn}, $T_skin, $T_corr, $bb1t, $bb2t,
-			maxvalue(1000*$samp_kt[$bb1view*5],$missing), maxvalue(1000*$samp_kt[$bb2view*5],$missing), 
-			maxvalue(1000*$samp_kt[$seaview*5],$missing), maxvalue(1000*$samp_kt[$skyview*5],$missing), $e_sea,
-			$samp_pitch{mn}, $samp_pitch{std},	$samp_roll{mn}, $samp_roll{std}, $samp_az{mn}, $samp_var{mn},
-			maxvalue(1000*$samp_org{mn},$missing), maxvalue(1000*$samp_org{min},$missing), maxvalue(1000*$samp_org{max},$missing), 
-			$sum_switch{start1}, $sum_switch{end1}, $sum_switch{changes1},
-			$sum_switch{start2}, $sum_switch{end2}, $sum_switch{changes2};		
+		#V22 
+		if($KtDigFlag == 1){
+			$str = sprintf "%d %s %.5f %.5f %.3f %.3f %.3f %.3f %.1f %.1f %.1f %.1f %.5f %.1f %.1f %.1f %.1f %.0f %.0f %.1f %.1f %.1f %d %d %d %d %d %d",
+				$Nsamp, dtstr($dt_samp,'ssv'), $samp_lat{mn}, $samp_lon{mn}, $T_skin, $T_corr, $bb1t, $bb2t,
+				maxvalue($samp_ktrad[$bb1view*5],$missing), maxvalue($samp_ktrad[$bb2view*5],$missing), 
+				maxvalue($samp_ktrad[$seaview*5],$missing), maxvalue($samp_ktrad[$skyview*5],$missing), $e_sea,
+				$samp_pitch{mn}, $samp_pitch{std},	$samp_roll{mn}, $samp_roll{std}, $samp_az{mn}, $samp_var{mn},
+				maxvalue(1000*$samp_org{mn},$missing), maxvalue(1000*$samp_org{min},$missing), maxvalue(1000*$samp_org{max},$missing), 
+				$sum_switch{start1}, $sum_switch{end1}, $sum_switch{changes1},
+				$sum_switch{start2}, $sum_switch{end2}, $sum_switch{changes2};		
+			}else{
+			$str = sprintf "%d %s %.5f %.5f %.3f %.3f %.3f %.3f %.1f %.1f %.1f %.1f %.5f %.1f %.1f %.1f %.1f %.0f %.0f %.1f %.1f %.1f %d %d %d %d %d %d",
+				$Nsamp, dtstr($dt_samp,'ssv'), $samp_lat{mn}, $samp_lon{mn}, $T_skin, $T_corr, $bb1t, $bb2t,
+				maxvalue(1000*$samp_kt[$bb1view*5],$missing), maxvalue(1000*$samp_kt[$bb2view*5],$missing), 
+				maxvalue(1000*$samp_kt[$seaview*5],$missing), maxvalue(1000*$samp_kt[$skyview*5],$missing), $e_sea,
+				$samp_pitch{mn}, $samp_pitch{std},	$samp_roll{mn}, $samp_roll{std}, $samp_az{mn}, $samp_var{mn},
+				maxvalue(1000*$samp_org{mn},$missing), maxvalue(1000*$samp_org{min},$missing), maxvalue(1000*$samp_org{max},$missing), 
+				$sum_switch{start1}, $sum_switch{end1}, $sum_switch{changes1},
+				$sum_switch{start2}, $sum_switch{end2}, $sum_switch{changes2};		
+			}
 		open(AVG, ">>$fnavg") or die"OPEN DATA FILE FAILS";	
 		print AVG "$str\n";
 		#print "test $str\n";
@@ -437,11 +452,14 @@ while ( 1 ) {
 		# $rtr = ditto for radiance.
 		# $fhTMP = IO::File handle for the TMP file.
 		$e_sea=$e_cal; # for compatibility with sbd output
-		
-		@x = ( $bb1t, $bb2t, $samp_kt[$bb1view * 5], $samp_kt[$bb2view * 5], $samp_kt[$seaview * 5], $e_cal, $e_bb, $Acorr, $CalOffset,
-			 $kv, $missing, $ttr, $rtr, $TMP);
-		print"x = @x\n";
-		
+		#v22 ktrad option
+		if($KtDigFlag == 1){
+			@x = ( $bb1t, $bb2t, $samp_ktrad[$bb1view * 5], $samp_ktrad[$bb2view * 5], $samp_ktrad[$seaview * 5], $e_cal, $e_bb, $Acorr, $CalOffset,
+				 $kv, $missing, $ttr, $rtr, $TMP);
+		}else{
+			@x = ( $bb1t, $bb2t, $samp_kt[$bb1view * 5], $samp_kt[$bb2view * 5], $samp_kt[$seaview * 5], $e_cal, $e_bb, $Acorr, $CalOffset,
+				 $kv, $missing, $ttr, $rtr, $TMP);
+		}
 		$T_skin = ComputeTarget( @x );
 		printf"T_skin = %.3f\n", $T_skin;
 		
@@ -449,10 +467,18 @@ while ( 1 ) {
 		# CALIBRATION OUTPUT 
 		#==========================
 		#navg  yyyy MM dd hh mm ss ssst T1 T2 k1 k2 kcal ecal
-		$str = sprintf "%d  %s  %.3f %.3f %.3f %.1f %.1f %.1f %.5f",
-			$Nsamp, dtstr($dt_samp,'ssv'), $T_skin, $bb1t, $bb2t,
-			maxvalue(1000*$samp_kt[$bb1view*5],$missing), maxvalue(1000*$samp_kt[$bb2view*5],$missing), 
-			maxvalue(1000*$samp_kt[$calview*5],$missing), $e_cal;
+		#v22 ktrad option
+		if($KtDigFlag == 1){
+			$str = sprintf "%d  %s  %.3f %.3f %.3f %.1f %.1f %.1f %.5f",
+				$Nsamp, dtstr($dt_samp,'ssv'), $T_skin, $bb1t, $bb2t,
+				maxvalue($samp_ktrad[$bb1view*5],$missing), maxvalue($samp_ktrad[$bb2view*5],$missing), 
+				maxvalue($samp_ktrad[$calview*5],$missing), $e_cal;
+		}else{
+			$str = sprintf "%d  %s  %.3f %.3f %.3f %.1f %.1f %.1f %.5f",
+				$Nsamp, dtstr($dt_samp,'ssv'), $T_skin, $bb1t, $bb2t,
+				maxvalue(1000*$samp_kt[$bb1view*5],$missing), maxvalue(1000*$samp_kt[$bb2view*5],$missing), 
+				maxvalue(1000*$samp_kt[$calview*5],$missing), $e_cal;
+		}
 		open(AVG, ">>$fnavg") or die"OPEN DATA FILE FAILS";	
 		print AVG "$str\n";
 		#print "test $str\n";
@@ -497,19 +523,33 @@ while ( 1 ) {
 	else { $str = sprintf("%s,%.1f,%.1f,%.1f,%.1f",$str, $samp_pitch{mn},$samp_pitch{std}, $samp_roll{mn},$samp_roll{std}) }
 	# EMISSIVITY
 	$str = sprintf("%s,%.5f",$str,$e_sea);
-	# KT15 SEAVIEW
-	if ( $samp_kt[$seaview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
-	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$seaview*5]) }
-	# KT15 SKYVIEW
-	if ( $samp_kt[$skyview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
-	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$skyview*5]) }
-	# KT15 BB1VIEW
-	if ( $samp_kt[$bb1view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
-	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$bb1view*5]) }
-	# KT15 BB2VIEW
-	if ( $samp_kt[$bb2view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
-	else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$bb2view*5]) }
-	
+	if ( $KtDigFlag == 1 ){
+		# KT15 SEAVIEW
+		if ( $samp_ktrad[$seaview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, $samp_ktrad[$seaview*5]) }
+		# KT15 SKYVIEW
+		if ( $samp_ktrad[$skyview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, $samp_ktrad[$skyview*5]) }
+		# KT15 BB1VIEW
+		if ( $samp_ktrad[$bb1view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, $samp_ktrad[$bb1view*5]) }
+		# KT15 BB2VIEW
+		if ( $samp_ktrad[$bb2view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, $samp_ktrad[$bb2view*5]) }
+	}else{
+		# KT15 SEAVIEW
+		if ( $samp_kt[$seaview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$seaview*5]) }
+		# KT15 SKYVIEW
+		if ( $samp_kt[$skyview*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$skyview*5]) }
+		# KT15 BB1VIEW
+		if ( $samp_kt[$bb1view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$bb1view*5]) }
+		# KT15 BB2VIEW
+		if ( $samp_kt[$bb2view*5] == $missing ) { $str = sprintf("%s,-999", $str) }
+		else { $str = sprintf("%s,%d",$str, 1000*$samp_kt[$bb2view*5]) }
+	}
 	# THE REST
 	$str = sprintf("%s,%.2f,%.2f,%.4f,%d%d\#\n",$str,
 		$bb1t, $bb2t, $samp_org{mn}, $sum_switch{end1}, $sum_switch{end2} );
@@ -696,14 +736,11 @@ sub ReadNextRecord
 			else {$vx = $missing}
 			
 			#v21, digital $dat[20+$ioffset],   analog $dat[4+$ioffset], #analog if #v<=20
-			#v22, use the su.txt file to choose analog or digital
-			if($KtDigFlag==1){$ktoff=20}else{$ktoff=4} # v22 digital or analog position
-		
 			%record = (
 				dt => now(),			# the actual record time is the DAQ time
 				drum => $dat[2+$ioffset],
 				org => $dat[3+$ioffset],
-				kt => $dat[$ktoff+$ioffset], #v22
+				kt => $dat[4+$ioffset], #v22
 				bb2t3 => $dat[5+$ioffset],
 				bb2t2 => $dat[6+$ioffset],
 				bb2t1 => $dat[7+$ioffset],
@@ -785,7 +822,7 @@ sub ReadNextRecord
 			# v4 we output mv for some things. But if they are missing we want to avoid sending -999000
 			# time,rain,sw1,sw2,drum,pitch,roll,kt15,bb11,bb12,bb13,bb21,bb22,bb23,Vref(ad2-0),lat,lon,sog,cog
 			# 20061213-221214,1065,1,0,-4.5, 3.4, 285, 1023,2456,2454,2345,3487,3498,3567,4.045,-34.564,-123.087,04.5,234
-			$str = sprintf"<<%s,%4.0f,%d,%d, %4.1f,%4.1f, %04.1f, %4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%6.3f,%6d,%.2f",		#v15
+			$str = sprintf"<<%s,%4.0f,%d,%d, %4.1f,%4.1f, %04.1f, %4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%6.3f,%d,%.2f",		#v15
 			dtstr($record{dt},'iso'), maxvalue($missing,$record{org}*1000),$record{sw1},$record{sw2},
 			$record{pitch},$record{roll},$record{drum},maxvalue($missing,$record{kt}*1000),
 			maxvalue($missing,$record{bb1t1}*1000),maxvalue($missing,$record{bb1t2}*1000),
@@ -889,14 +926,16 @@ sub ClearAccumulatorArrays
 	#--we need to have bins for the different kt15 views--
 	@x = (0,0,0,1e99,-1e99);  # set up for accumulating
 	@y = ($missing, 0, 0, 0, 0);  # set up for sample out
-	@sum_drum = @sum_kt = @x;
-	@samp_drum = @samp_kt = @y;
+	@sum_drum = @sum_kt = @sum_ktrad = @x;    #v22 add ktrad
+	@samp_drum = @samp_kt = @samp_ktrad = @y;  #v22
 	for ( $i=0; $i<$#view; $i++ ) 
 	{ 
 		@sum_drum = (@sum_drum, @x); 	# flat array, 5 items/view
 		@sum_kt = (@sum_kt, @x); 		# flat array, 5 items/view
+		@sum_ktrad = (@sum_ktrad, @x); 		# v22 flat array, 5 items/view
 		@samp_drum = (@samp_drum, @y);
 		@samp_kt = (@samp_kt, @y);
+		@samp_ktrad = (@samp_ktrad, @y);  #v22
 	}			
 
 	#=================
@@ -980,29 +1019,39 @@ sub AccumulateStats
 	if ( $record{drum} != $missing && $record{kt} > $kmin && $record{kt} < $kmax ) {
 		$x = $record{drum}; 
 		$y = $record{kt};
+		$z = $record{ktrad};  #v22
 		## SCAN EACH VIEW FOR THE CURRENT DRUM ANGLE
 		foreach ( 0..$#view ) 
 		{
 			$d1 = $view[$_] - $drum_pointing_uncertainty;  $d2 = $view[$_] + $drum_pointing_uncertainty;  # sector limits
 			if ( $x >= $d1 && $x <= $d2 ) 
 			{
-				if($kv==1){printf $TMP "Accumulate kt, view=%.2f, kt=%.5f\n", $x, $y}
-				#printf "test Accumulate kt, view=%.2f, kt=%.5f\n", $x, $y;
+				if($kv==1){printf $TMP "Accumulate kt, view=%.2f, kt=%.5f, ktrad=%.5f\n", $x, $y, $z}    #v22
 				#==================
 				# Put kt15 into in the correct bin
 				# Skip the first record in each view
 				# There are five variables in each view block (sum, sumsq, n, min, max)  #v2
+				# v22 -- add ktrad and kt
 				#==================
 				$ii = $_ * 5;						# pointer to this view block  #v2
-				$sum_kt[$ii] +=   $y;					# sum
+				$sum_kt[$ii] += $y;					# sum
+				$sum_ktrad[$ii] += $z;					# sum
 				$sum_drum[$ii] += $x;					# sum
-				$ii++; $sum_kt[$ii] += ($y * $y);		# sum of squares
+				$ii++; 
+				$sum_kt[$ii] += ($y * $y);		# sum of squares
+				$sum_ktrad[$ii] += ($z * $z);		# sum of squares
 				$sum_drum[$ii] += ($x * $x);			# sum of squares
-				$ii++; $sum_kt[$ii]++;					# count
+				$ii++; 
+				$sum_kt[$ii]++;					# count
+				$sum_ktrad[$ii]++;					# count
 				$sum_drum[$ii]++;						# count
-				$ii++; $sum_kt[$ii] = minvalue($sum_kt[$ii], $y);	# min
+				$ii++; 
+				$sum_kt[$ii] = minvalue($sum_kt[$ii], $y);	# min
+				$sum_ktrad[$ii] = minvalue($sum_ktrad[$ii], $y);	# min
 				$sum_drum[$ii] = minvalue($sum_drum[$ii], $x);		# min
-				$ii++; $sum_kt[$ii] = maxvalue($sum_kt[$ii], $y);	# max
+				$ii++; 
+				$sum_kt[$ii] = maxvalue($sum_kt[$ii], $y);	# max
+				$sum_ktrad[$ii] = maxvalue($sum_ktrad[$ii], $y);	# max
 				$sum_drum[$ii] = maxvalue($sum_drum[$ii], $x);		# max
 				last;
 			}
@@ -1070,12 +1119,15 @@ sub ComputeStats
 		# -- kt15 view data -----------			
 		( $samp_kt[$i], $samp_kt[$i+1], $samp_kt[$i+2], $samp_kt[$i+3], $samp_kt[$i+4] ) =
 			stats1 ( $sum_kt[$i], $sum_kt[$i+1], $sum_kt[$i+2], $sum_kt[$i+3], $sum_kt[$i+4], $Nsamp_min, $missing);	
+		# -- kt15rad view data -----------			
+		( $samp_ktrad[$i], $samp_ktrad[$i+1], $samp_ktrad[$i+2], $samp_ktrad[$i+3], $samp_ktrad[$i+4] ) =
+			stats1 ( $sum_ktrad[$i], $sum_ktrad[$i+1], $sum_ktrad[$i+2], $sum_ktrad[$i+3], $sum_ktrad[$i+4], $Nsamp_min, $missing);	
 		# -- drumpos view data ---	
 		( $samp_drum[$i], $samp_drum[$i+1], $samp_drum[$i+2], $samp_drum[$i+3], $samp_drum[$i+4] ) =
 			stats1 ( $sum_drum[$i], $sum_drum[$i+1], $sum_drum[$i+2], $sum_drum[$i+3], $sum_drum[$i+4], $Nsamp_min, $missing);	
 		if($kv == 1 ) { printf $TMP "VIEW AVERAGES: i = %d, view = %.1f, drum=%.2f,  kt mn samp = %.4f\n", $_, $view[$_], $samp_drum[$i], $samp_kt[$i]}
 	}
-	
+	printf("v22 %.0f, %.0f, %.0f, %.0f\n",$samp_ktrad[0],$samp_ktrad[5],$samp_ktrad[10],$samp_ktrad[15]);
 	#====================
 	# SCALARS
 	# sub (mn, stdpcnt, n, min, max) = stats1(sum, sumsq, N, min, max, Nsamp_min);
