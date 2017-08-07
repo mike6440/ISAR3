@@ -1,43 +1,36 @@
-THIS FILE: su4.txt --- RUN
-Editdate: 170705
+	# THIS FILE: su4.txt --- RUN
+	# Editdate: 170705
 ISAR SERIAL NUMBER: 04
-
-
-#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
+	#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 0
-
-# =1 simulate  =0 operate
+	# =1 simulate  =0 operate
 SIMULATEFLAG: 1
-
-# DATA FILES 
+	# DATA FILES 
 ISAR-RT OUT PATH: data
-
-#	========================
-#		HUB ADDRESS AND PORTS
-#		PDS default: 192.168.255.1 (sometimes ...3)
-#	========================
+	#	========================
+	#		HUB ADDRESS AND PORTS
+	#		PDS default: 192.168.255.1 (sometimes ...3)
+	#	========================
 SERIAL HUB URL: 192.168.255.1
-		#ISAR -- 10001, simulate=0
+	#ISAR -- 10001, simulate=0
 ISAR HUB COM NUMBER: 10001
-		#GPS -- 10003, Fixed=-1, simulate=0
+	#GPS -- 10003, Fixed=-1, simulate=0
 GPS HUB COM NUMBER: 10003
-		#MODEM -- 10004, Not connected=-1, simulate=0
+	#MODEM -- 10004, Not connected=-1, simulate=0
 SBD HUB COM NUMBER: 10004
-
 	#=======================
 	#	OPERATIONAL PARAMETERS
 	#=======================
 	# RUN
 	# i04cal_141108_apl 1.0033 / 0.0837
 	# i04cal_1606       1.0039 / 0.100
-SSST SLOPE : 1.0039
-SSST OFFSET: 0.100
+	# i04cal_1707		1.0160 / 0.114
+SSST SLOPE : 1.0160
+SSST OFFSET: 0.114
 KT DIGITAL FLAG: 1
-
-# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
+	# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
 SCAN VIEW ANGLES: 280 325 45 135
-
-# CALIBRATION
+	# CALIBRATION
 CAL SSST SLOPE: 1
 CAL SSST OFFSET: 0
 	# VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
@@ -45,6 +38,13 @@ CAL SCAN VIEW ANGLES: 280 325 45 90
 	# ONLY AVG THESE THERMISTORS
 PROCESSING BB1 THERMISTORS: 1 2
 PROCESSING BB2 THERMISTORS: 1 2
+
+	========================
+	COMMENTS/LOG
+	========================
+COMMENTS:
+	i04cal_1707/
+END
 
 NO DATA WAIT TIME: 3600
 
@@ -98,14 +98,6 @@ MINIMUM EXPECTED LONGITUDE: -180
 MAXIMUM EXPECTED LONGITUDE: 360
 MISSING VALUE: -999
 
-
-	========================
-	COMMENTS/LOG
-	========================
-COMMENTS:
-	i04cal_160630/
-	160730_rosr-isar_compare
-END
 
 	========================
 	GPS SETUP
