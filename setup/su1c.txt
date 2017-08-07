@@ -1,10 +1,12 @@
 THIS FILE: su1c.txt
-Editdate: 160920
-After complete maintenance, before AL43. New mirror, new window, LED repair, alignment check.
+	# Editdate: 160920
+	# After complete maintenance, before AL43. New mirror, new window, LED repair, alignment check.
 ISAR SERIAL NUMBER: 01
+	# =1 simulate  =0 operate
+SIMULATEFLAG: 1
 	#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 1
-		DATA FILES ---------------------
+	# Data Files
 ISAR-RT OUT PATH: data
 NO DATA WAIT TIME: 3600
 

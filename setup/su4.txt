@@ -6,6 +6,9 @@ ISAR SERIAL NUMBER: 04
 #CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 0
 
+# =1 simulate  =0 operate
+SIMULATEFLAG: 1
+
 # DATA FILES 
 ISAR-RT OUT PATH: data
 

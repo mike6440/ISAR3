@@ -2,6 +2,9 @@ THIS FILE: su1.txt
  ANDROMEDA LEADER CRUISE AL43  
 Editdate: 160412
 ISAR SERIAL NUMBER: 01
+# =1 simulate  =0 operate
+SIMULATEFLAG: 1
+
 		DATA FILES ---------------------
 ISAR-RT OUT PATH: data
 NO DATA WAIT TIME: 3600
