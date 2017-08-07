@@ -36,7 +36,7 @@ set EDITDATE 150412
   # √ remove -nonewline from puts to gpsraw.
 #v20 150203
  #   edit for calibration run
-
+#v21 -- simulate
 
 puts "
 RUN PROGRAM $PROGRAMNAME, VERSION $VERSION, EDITDATE $EDITDATE"
@@ -60,6 +60,16 @@ global GPS GPSPID GPSAV GPSAVPID
 global infoname
 global e_cal
 
+#========================================================
+#		PROCEDURE TO SIMULATE PRP -- v12
+#========================================================
+proc SpawnIsarSimulate { } {
+	global ISAR ISARPID infoname
+		# Spawn simulate_prp
+	set ISARPID [spawn perl simulate_isar]
+	set ISAR $spawn_id
+	write_info $infoname "Spawn simulate_isar"
+}
 #========================================================
 		# PROCEDURE TO CONNECT TO ISAR  v13
 #============================================================
@@ -370,7 +380,6 @@ spawn -noecho getsetupinfo $setupfile "ISAR-RT OUT PATH"
 expect -re "(\.*)(\r)";
 set datapath $expect_out(1,string)
 
-
 		# INFONAME
 set infoname "$env(DAQDATAFOLDER)/info.txt";
 send_user "INFONAME: $infoname\n";
@@ -443,27 +452,25 @@ spawn -noecho getsetupinfo $setupfile "GPS HUB COM NUMBER"
 expect -re "(\.*)(\r)";
 set gpsport $expect_out(1,string)
 write_info $infoname  "GPS HUB COM NUMBER: $gpsport"
+send_user "GPS HUB COM NUMBER: $gpsport\n"
 
    # !! TO DO - use fixedlat and fixedlon
-set gpsstr [exec fixed_gprmc a]
-send_user "STARTUP GPS: $gpsstr\n"
-set glen [string length $gpsstr]
-set timegps [timestamp -gmt]
+# set gpsstr [exec fixed_gprmc a]
+# send_user "STARTUP GPS: $gpsstr\n"
+# set glen [string length $gpsstr]
+# set timegps [timestamp -gmt]
 
 		# OPEN GPS SERIAL PORTS
 SpawnGPS $hub_url $gpsport 
 send_user "GPS=$GPS, GPSPID=$GPSPID\n";
-
 		# OPEN AVG PROGRAMS
 SpawnAvgGPS  $setupfile 
 send_user "GPSAV=$GPSAV, GPSAVPID=$GPSAVPID\n";
-
 		## ISAR PORT
 spawn -noecho getsetupinfo $setupfile "ISAR HUB COM NUMBER"
 expect -re "(\.*)(\r)";
 set isarport $expect_out(1,string)
 write_info $infoname  "ISAR HUB COM NUMBER: $isarport"
-
 		#=================
 		# OPEN SET FILE NAMES AND NOTE TIME
 		#=================
@@ -472,7 +479,6 @@ set day0 [timestamp -gmt -format "%j"]
 write_info $infoname "start year day: $day0";
 		# day1 = current day used to detect a new day at midnight
 set day1 $day0
-
 		#=================
 		# WRITE TO ISAR RAW AND AVG FILE
 		# I01110304raw.txt
@@ -483,45 +489,33 @@ set rwname "$datapath/isar_raw_$fname.txt";
 write_info $infoname  "ISAR RAW FILE: $rwname";
 set gpsrawname "$datapath/gps_raw_$fname.txt";
 write_info $infoname  "GPS RAW FILE: $gpsrawname";
-
-		# OPEN SERIAL PORTS
-SpawnIsar $hub_url $isarport 
-		# OPEN AVG PROGRAMS
+	# OPEN SERIAL CONNECTION - v2 include simulate
+spawn -noecho getsetupinfo $setupfile "SIMULATEFLAG"
+expect -re "(\.*)(\r)";
+set simulateflag $expect_out(1,string)
+if { $simulateflag == 1 } { 
+	send_user "SIMULATE ISAR\n";
+	SpawnIsarSimulate;
+} else {
+	send_user "STANDARD ISAR\n";
+	SpawnIsar $hub_url $isarport
+}
+	# SPAWN AVG PROGRAMS
 SpawnAvgIsar $setupfile 
-
-		#====================
-		# TIMING PARAMETERS
-		#====================
-		# SET dt0 SO THE FIRST AVG WILL BE TRANSMITTED
-# set dt0 [expr [timestamp -gmt] -100]
 set timeout 30		;# leave enough time for the scan drum to move
-
-		# =====================
-		# MAIN LOOP
-		# Wait for a string from isar
-		# Send the string to isar_avg program
-		#======================
+	# MAIN LOOP
 write_info $infoname "===== BEGIN MAIN LOOP ====="
-send_user "===== BEGIN MAIN LOOP =====\n"
-
 set timeisar [timestamp -gmt]
-		# COUNT THE NUMBER OF GOOD ISAR RECORDS RECEIVED
 set Nrecs 0
-
 if { $gpsport >= 0 } {
 	set timegps [expr [timestamp -gmt] - 100];	#set timegps so as to skip insert until a good gps.
 }
-
-		#=================
-		# EXPECT LOOP
-		#=================
+	# EXPECT LOOP
 while 1 {
-			#=============================
-			# CHECK FOR A GAP IN THE AVG SBD TRANSMISSIONS
-			# IF TIME SINCE A GOOD TX > $txsecs, THEN SEND AN ERROR MESSAGE
-			#=============================
+		# CHECK FOR A GAP IN THE AVG SBD TRANSMISSIONS
+		# IF TIME SINCE A GOOD TX > $txsecs, THEN SEND AN ERROR MESSAGE
 	set dt [timestamp -gmt]
-			# CHECK FOR A NEW DAY -- NEW FILES
+		# CHECK FOR A NEW DAY -- NEW FILES
 	set day1 [timestamp -gmt -format "%j"]
 	if {$day1 != $day0} {
 		send_user "DAY CHANGE\r\n"
@@ -533,10 +527,7 @@ while 1 {
 		set gpsrawname "$datapath/gps_raw_$fname.txt";
 		write_info $infoname "gpsrawname = $gpsrawname"
 	}
-		
-			#================
-			# EXPECT FUNCTION -- WAITING FOR RESPONSE
-			# ===============
+		# EXPECT FUNCTION -- WAITING FOR RESPONSE
 	expect { 		
 		-i $ISAR 
 		"\\\$IS001*\\*00" {
@@ -547,6 +538,7 @@ while 1 {
 				# the *00 is reserved for a check sum.
 				#==========================
 			set rawstr [string trimright $expect_out(0,string)]
+			send_user "$rawstr\n";
 			set rawlen [string length $rawstr]
 			
 					## CHECK IF IT IS OF CORRECT SIZE v4

@@ -48,19 +48,12 @@ use POSIX;
 #=======================
 # FIND THE SETUP FILE
 #=======================
-if ( $#ARGV == 0 ) {
-	print "read setup file from command line\n";
-	$setupfile = shift();
-} else {
-	print"read setup file from environment\n";
-	$setupfile = $ENV{SETUPFILE};
-}
+$setupfile = shift();
 if ( ! -f $setupfile ) {
 	print "ERROR -- NO SETUP FILE, $setupfile\n";
 	exit 1;
 }
 print "SETUPFILE = $setupfile\n";
-
 my $str;
 my ($minlat, $maxlat, $minlon, $maxlon);
 

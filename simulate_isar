@@ -26,7 +26,6 @@ while (1) {
 			# STRIP OFF THE BEGINNING TIME.
 		$i1=index($str,'$I');
 		$str = substr($str,$i1);
-		
 			# IS THIS AN ISAR STRING
 		if ( $str =~ /^\$IS/) {
 			print"$str\r\n";
