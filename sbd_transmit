@@ -52,7 +52,7 @@ proc spawn_kermit {hub_url portnumber} {
 			# OPEN THE PORT
 	send "set host $hub_url $portnumber\r"
 	expect ">>"
-	send "set tcp keepalive on 0\r\n"
+	send "set tcp keepalive on\r\n"
 	expect ">>"
 	send "set tcp linger OFF\r\n"
 	expect ">>"
