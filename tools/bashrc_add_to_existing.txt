@@ -1,5 +1,10 @@
 #Add this to the end of any .bashrc on any new unix/linux pc.
 
+# HomePath
+[ -d $HOME/Dropbox ] \
+	&& export HomePath="$HOME/Dropbox" \
+	|| export HomePath="$HOME"
+
 export PS1='\w/$ '
 #==========================================================
     # DEFINE THE DAQ SYSTEM: FRSR, ROSR, ISAR2,ISAR3,ISAR4,PRP,PRP2,MET1,RAD,NONE
