@@ -86,15 +86,13 @@ proc SpawnIsar { hub_url isarport} {
 		write_info $infoname "SPAWN ISAR KERMIT, IP=$hub_url, port=$isarport, spawn_id=$ISAR, pid=$ISARPID"
 	}
 }
-
-
 #==================================
 # PROCEDURE TO CONNECT TO GPS  v13
 #==================================
 proc SpawnGPS { hub_url gpsport } {
 	global GPS GPSPID infoname 
 	if {$gpsport == 0} {
-		set GPSPID [spawn perl simulate/gps_simulator 1]
+		set GPSPID [spawn perl simulate_gps 5]
 		set GPS $spawn_id
 		write_info $infoname "GPS SIMULATE INPUT, spawn_id = $GPS,  pid = $GPSPID"
 		send_user "GPS SIMULATE\n"
@@ -110,8 +108,6 @@ proc SpawnGPS { hub_url gpsport } {
 		send_user "GPS KERMIT spawn_id=$GPS, pid=$GPSPID\n"
 	}
 }
-
-
 #==========================================
 #   PROCEDURE TO START AVGISAR PROGRAM
 #==========================================
@@ -129,8 +125,6 @@ proc SpawnAvgIsar { setupfile } {
 		}
 	}
 }
-
-
 #=============================================
 # PROCEDURE TO START AVGGPS PROGRAM
 #============================================
@@ -140,17 +134,15 @@ proc SpawnAvgGPS { setupfile } {
 	set GPSAV $spawn_id;
 	write_info $infoname "SPAWN GPSAV spawn_id = $GPSAV,  pid=$GPSAVPID"
 	
-			# WAIT FOR THE STARTUP PROMPT
+		# WAIT FOR THE STARTUP PROMPT
 	set timeout 5
 	expect {
-				# REPLY FROM AVG PROGRAM
+			# REPLY FROM AVG PROGRAM
 		"GPS--" {
 			send_user "AVGGPS is ready\n"
 		}
 	}
 }
-
-
 #===================================================================
 #   PROCEDURE TO COMPUTE LAT AND LON FROM GPS STRING
 # $s2 = gps raw string
@@ -171,12 +163,11 @@ proc get_latlonstr {s2} {
 		set lat [expr $l2 + ($l - $l2*100)/60]
 		if { [string equal -nocase [lindex $g 4] S] } {set lat [expr -$lat] }
 		if { $lat < -90 || $lat > 90 } {
-			#write_info $infoname  "get_latlonstr: GPS lat out of range, set to missing";
+				#write_info $infoname  "get_latlonstr: GPS lat out of range, set to missing";
 			set lat -999;
 		}
 	}
-	
-			## LONGITUDE
+		## LONGITUDE
 	set l [lindex $g 5];
 	if { ! [string is double $l] } {
 		#write_info $infoname  "get_latlonstr: GPS lon string is not a f.p. number";
@@ -189,8 +180,7 @@ proc get_latlonstr {s2} {
 			#write_info $infoname  "get_latlonstr: GPS lon out of range, set to missing";
 			set lon -999;
 		}
-	}
-	
+	}	
 			## SOG
 	set sog [lindex $g 7];
 	if { ! [string is double $sog] } {
@@ -538,7 +528,6 @@ while 1 {
 				# the *00 is reserved for a check sum.
 				#==========================
 			set rawstr [string trimright $expect_out(0,string)]
-			send_user "$rawstr\n";
 			set rawlen [string length $rawstr]
 			
 					## CHECK IF IT IS OF CORRECT SIZE v4
@@ -559,18 +548,20 @@ while 1 {
 					# Insert only if string length is okay and time is within about one minute and 
 					# if the isar position is bad, -999.
 					#============
+					set glen [string length $rawstr]
 					if { $glen > 50 && [expr $timeisar - $timegps < 60] } {
 						set rawstr [insert_gps $rawstr $gpsstr $isarsn]
 					}
-							#=================
-							# SAVE TO RAW FILE
-							#=================
+						#=================
+						# SAVE TO RAW FILE
+						#=================
+					set str [timestamp -gmt -format "%Y,%m,%d,%H,%M,%S, "]$rawstr
 					set F [open $rwname a 0600]
-					puts $F [timestamp -gmt -format "%Y,%m,%d,%H,%M,%S, "]$rawstr  ;#v8d
+					puts $F $str  ;#v8d
 					close $F
-							#===================
-							# SEND TO ISARAV AND ISARAV FOR RESPONSE
-							#===================
+						#===================
+						# SEND TO ISARAV AND ISARAV FOR RESPONSE
+						#===================
 					send -i $ISARAV "$rawstr\r\n"
 				}
 			}
