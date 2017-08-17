@@ -4,7 +4,7 @@ ISAR SERIAL NUMBER: 04
 	#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 0
 	# =1 simulate  =0 operate
-SIMULATEFLAG: 1
+SIMULATEFLAG: 0
 	# DATA FILES 
 ISAR-RT OUT PATH: data
 	#	========================
@@ -13,11 +13,11 @@ ISAR-RT OUT PATH: data
 	#	========================
 SERIAL HUB URL: 192.168.255.1
 	#ISAR -- 10001, simulate=0
-ISAR HUB COM NUMBER: 0
+ISAR HUB COM NUMBER: 10001
 	#GPS -- 10003, Fixed=-1, simulate=0
-GPS HUB COM NUMBER: 0
+GPS HUB COM NUMBER: 10003
 	#MODEM -- 10004, Not connected=-1, simulate=0
-SBD HUB COM NUMBER: 0
+SBD HUB COM NUMBER: 10004
 	#=======================
 	#	OPERATIONAL PARAMETERS
 	#=======================
@@ -68,8 +68,6 @@ APPERATURE THERMS REF RESISTANCES: 10000 10000 10000 10000
 	=======================
 		CALIBRATION PARAMETERS
 	=======================
-	#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
-CALIBRATION EMISSIVITY: 0
 	# INDEX -- (0,1,...) index.  Use for calibration case
 CALIBRATION VIEW POSITION : 3
 	# CAL VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
@@ -87,8 +85,7 @@ PLATFORM SIDE: PORT
 HEIGHT ABOVE SEA LEVEL (m): 30 m approx
 SHIP TYPE: Car Carrier
 SHIP NAME: ANDROMEDA LEADER
-CRUISE NAME: AL45
-
+CRUISE NAME: AL51
 	========================
 		QUALITY ERROR CHECK
 	========================
@@ -97,8 +94,6 @@ MAXIMUM EXPECTED LATITUDE: 90
 MINIMUM EXPECTED LONGITUDE: -180
 MAXIMUM EXPECTED LONGITUDE: 360
 MISSING VALUE: -999
-
-
 	========================
 	GPS SETUP
 	NOTE: Use the Garmin-supplied Windows program to set the 17x for
