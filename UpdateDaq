@@ -51,8 +51,8 @@ if [ $chk -eq 0 ] > /dev/null ; then
 		# START PROCESSES
 	screen -S ISAR -p 1 -X stuff "bash$(printf \\r)"
 	screen -S ISAR -p 1 -X stuff "G$(printf \\r)"
-
-	#echo UpdateDaq, reboot exit >> $DAQDATAFOLDER/daqlog
+	
+    #echo $DAQSWFOLDER/UpdateDaq, reboot exit >> $DAQDATAFOLDER/daqlog
 	exit 1;
 fi
 exit 0;
