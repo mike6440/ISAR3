@@ -14,6 +14,7 @@ export DAQSWFOLDER="$DAQFOLDER/sw"
 export DAQDATAFOLDER="$DAQFOLDER/data"
 alias gtdaq="cd $DAQSWFOLDER"
 
+
 echo $PATH | grep -q -s /opt/local/bin
 if [ $? -eq 1 ] ; then
     PATH=$PATH\:/opt/local/bin\:/opt/local/sbin
