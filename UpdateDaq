@@ -30,7 +30,7 @@ cd $DAQSWFOLDER
 echo $version" ====================" >> $DAQDATAFOLDER/daqlog;
 date -u "+%Y %m %d %H %M %S Z" >> $DAQDATAFOLDER/daqlog;
 
-DaqUpdate >> $DAQDATAFOLDER/daqlog
+$DAQSWFOLDER/DaqUpdate >> $DAQDATAFOLDER/daqlog
 
 chk=`cat /tmp/tmpdaq`;
 if [ $chk -eq 1 ] > /dev/null ; then
