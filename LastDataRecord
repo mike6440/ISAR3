@@ -1,19 +1,20 @@
 #!/usr/bin/perl -X
 #   ./LastAvg rad_avg (or 'gps_avg', 'wxt_raw', etc)
+# v2 160211 -- improved performance
 
-my $s = `LastDataFolder`;
-chomp $s;
-#print"datafolder = $s\n";
+#CALL:
+#	LastDataRecord -- no argument
+#		0
+#	LastDataRecord prxx -- no bad argument
+#		0
+#	LastDataRecord prp_raw -- good argument, time series folder exists
+#		$WIPRR,20150804T150652Z,0,40.2,0.0,10,84.05,399.14,1.13,18.20,18.31,6.8,9.4,89.8,13.8*6A
 
+if($#ARGV<0){print"0";exit 1;}
 my $a = shift();
+my $s = `LastDataFolder $a`;
+chomp $s;
+if($s eq '0'){print"0"}
+else{system "tail -1 $s";}
+exit 0;
 
-my @rw = `ls -1 $s/$a*.txt 2>/dev/null`;
-#foreach(@rw){chomp($_); print"$_\n"}
-
-if ($#rw < 0 ){exit 1}
-else {
-	chomp($fz=$rw[$#rw]); 
-	$fz =~ s/^\s+//;
-	system "tail -1 $fz";
-	exit 0;
-}

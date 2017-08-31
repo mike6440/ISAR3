@@ -30,7 +30,7 @@ cd $DAQSWFOLDER
 echo $version" ====================" >> $DAQDATAFOLDER/daqlog;
 date -u "+%Y %m %d %H %M %S Z" >> $DAQDATAFOLDER/daqlog;
 
-DaqUpdate >> $DAQDATAFOLDER/daqlog
+$DAQSWFOLDER/DaqUpdate >> $DAQDATAFOLDER/daqlog
 
 chk=`cat /tmp/tmpdaq`;
 if [ $chk -eq 1 ] > /dev/null ; then
@@ -47,12 +47,12 @@ if [ $chk -eq 0 ] > /dev/null ; then
  	$DAQSWFOLDER/Cleanupisar >> $DAQDATAFOLDER/daqlog
 		# STARTISAR
 	$DAQSWFOLDER/PrepareForRun >> $DAQDATAFOLDER/daqlog
-	screen -S ISAR -d -m -c $DAQFOLDER/tools/screenrc_isar.txt
+	screen -S ISAR -d -m -c $DAQSWFOLDER/tools/screenrc_isar.txt
 		# START PROCESSES
 	screen -S ISAR -p 1 -X stuff "bash$(printf \\r)"
 	screen -S ISAR -p 1 -X stuff "G$(printf \\r)"
-
-	#echo UpdateDaq, reboot exit >> $DAQDATAFOLDER/daqlog
+	
+    #echo $DAQSWFOLDER/UpdateDaq, reboot exit >> $DAQDATAFOLDER/daqlog
 	exit 1;
 fi
 exit 0;

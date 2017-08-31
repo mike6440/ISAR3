@@ -1,5 +1,7 @@
 #Add this to the end of any .bashrc on any new unix/linux pc.
 
+export PATH="/home/oper/bin:/home/oper/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/opt/local/bin:/opt/local/sbin"
+
 # HomePath
 [ -d $HOME/Dropbox ] \
 	&& export HomePath="$HOME/Dropbox" \
@@ -9,7 +11,7 @@ export PS1='\w/$ '
 #==========================================================
     # DEFINE THE DAQ SYSTEM: FRSR, ROSR, ISAR2,ISAR3,ISAR4,PRP,PRP2,MET1,RAD,NONE
 #==========================================================
-export DAQ="FRSR"
+export DAQ="ISAR3"
 #export DAQPATH="$HOME/Dropbox/swmain/apps"
 [ -d $HOME/Dropbox ] \
 	&& export DAQPATH="$HOME/Dropbox/swmain/apps" \
@@ -23,11 +25,6 @@ echo "prompt k>>" > ~/.kermrc
 	&& export MYLIB=$HOME"/Dropbox/swmain/perl" \
 	|| export MYLIB=$HOME"/swmain/perl"
 
-# FRSR
-if expr $DAQ = "FRSR" > /dev/null ; then
-test -f $DAQPATH/FRSR/sw/tools/bashrc_frsr.txt && . $_
-fi
-
 # ROSR
 if expr $DAQ = "ROSR" > /dev/null ; then
 test -f $DAQPATH/ROSR/sw/tools/bashrc_rosr.txt && . $_
@@ -38,18 +35,4 @@ if expr $DAQ = "ISAR3" > /dev/null ; then
 test -f $DAQPATH/ISAR3/sw/tools/bashrc_isar3.txt && . $_
 fi
 
-# PRP
-if expr $DAQ = "PRP" > /dev/null ; then 
-test -f $DAQPATH/PRP/sw/tools/bashrc_prp.txt && . $_
-fi
-
-# PRP2
-if expr $DAQ = "PRP2" > /dev/null ; then 
-test -f $DAQPATH/PRP2/sw/tools/bashrc_prp2.txt && . $_
-fi
-
-# RAD
-if expr $DAQ = "RAD" > /dev/null ; then 
-test -f $DAQPATH/RAD/sw/tools/bashrc_rad.txt && . $_
-fi
 #==== END INSERTED TEXT =======================================

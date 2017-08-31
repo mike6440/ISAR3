@@ -3,7 +3,7 @@ hardstatus string '%{= kG}[ %{G}%H %{g}][%= %{=kw}%?%-Lw%?%{r}(%{W}%n*%f%t%?(%u)
 
 # Default screens
 screen -t USER	0
-screen -t I:G   1
+screen -t ISAR   1
 
 startup_message off # Turn off the splash screen
 
