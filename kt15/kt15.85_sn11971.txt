@@ -1,12 +1,11 @@
+ISAR-04 Filter Function
 16 05 11		
-KT15.85 SN11971		
-      12.SPK        Pyroelektrischer Detektor (LiTaO3)		
-     160.SPK        9.6 - 11.5		
-		
-		
-		
-		
-	9.4	11.26
+	KT15.85 SN11971		
+    12.SPK        Pyroelektrischer Detektor (LiTaO3)		
+    160.SPK        9.6 - 11.5		
+    microns           relative response    steps in microns        #steps
+# error	9.40	11.8	0.06	40
+	9.4		0.000		
 	9.43	2.54631
 	9.49	5.793331
 	9.55	9.668717
@@ -38,4 +37,4 @@ KT15.85 SN11971
 	11.11	10.918391
 	11.17	6.826609
 	11.23	2.828826
-	
+	11.8	0.0000
