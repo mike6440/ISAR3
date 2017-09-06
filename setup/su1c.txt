@@ -1,9 +1,9 @@
 THIS FILE: su1c.txt
-	# Editdate: 160920
-	# After complete maintenance, before AL43. New mirror, new window, LED repair, alignment check.
+	# Editdate: 170901
+	# New encoder, cleaned out after al50
 ISAR SERIAL NUMBER: 01
 	# =1 simulate  =0 operate
-SIMULATEFLAG: 1
+SIMULATEFLAG: 0
 	#CAL EMIS: 0 = field use, compute e from angle,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 1
 	# Data Files
@@ -12,7 +12,7 @@ NO DATA WAIT TIME: 3600
 
 SERIAL HUB URL: 192.168.255.1
 	ISAR -- 10001, simulate=0
-ISAR HUB COM NUMBER: 10001
+ISAR HUB COM NUMBER: 10003
 
 	========================
 		QUALITY ERROR CHECK
