@@ -1,7 +1,7 @@
 #!/usr/bin/perl -X
 my $PROGRAMNAME = 'avgisar';
-my $VERSION = '21';  
-my $EDITDATE = '160704';  #'160611';
+my $VERSION = '23';  
+my $EDITDATE = '170911'; '160704';  #'160611';
 
 # RT PROCESSING OF ISAR DATA 
 #v01 -- taken from isrtsb
@@ -35,7 +35,7 @@ my $EDITDATE = '160704';  #'160611';
 #v21 -- Compute ssst using the RAD output.
 #     -- Note: go to !! to choose between analog or digital kt15. 
 #v22  -- Add KtDigFlag to choose digital or analog (i04 uses digital)
-
+#v23-Sometimes, very clear, kt15 goes <0. Trap that and set to zero.
 use lib $ENV{DAQLIB};
 use perltools::MRtime;
 use perltools::MRutilities;
@@ -755,6 +755,7 @@ sub ReadNextRecord
 				ktrad => $dat[30+$ioffset],
 				ktamb => $dat[31+$ioffset]
 			);
+			if ( $record{kt} < 0 ) {$record{kt}=0}  # v23
 			
 			#======================
 			# CHECK ALL VARIABLES FOR BAD VALUES
@@ -997,12 +998,12 @@ sub AccumulateStats
 {
 	my ($d1, $d2, $ii);
 	my ($x, $y, $s);
-	my $kmin=0; my $kmax=5;  ## DEFINE VALID RANGE FOR KT READINGS
+	my $kmin=0; my $kmax=5;  ## DEFINE VALID RANGE FOR KT READINGS  # v23
 	
 	#=========================
 	#-- ACCUM ONLY IF DRUM MEAS IS PRSENT--
 	#=========================
-	if ( $record{drum} != $missing && $record{kt} > $kmin && $record{kt} < $kmax ) {
+	if ( $record{drum} != $missing && $record{kt} >= $kmin && $record{kt} <= $kmax ) {
 		$x = $record{drum}; 
 		$y = $record{kt};
 		$z = $record{ktrad};  #v22
