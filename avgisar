@@ -57,14 +57,12 @@ print "SETUPFILE = $setupfile\n";
 my $str;
 my ($minlat, $maxlat, $minlon, $maxlon);
 
-
 #===================
 # DEFINE OUT PATH
 #===================
 my $outpath =  FindInfo($setupfile,'ISAR-RT OUT PATH', ': ');
 if ( ! -d $outpath ) { print"!! ISAR-RT OUT PATH ERROR, $outpath\n"; die }
-#print"OUTPATH=$outpath\n";
-
+print"OUTPATH=$outpath\n";
 
 #==================
 #CHECK FOR VERBOSE MODE
@@ -85,13 +83,10 @@ if ($kv==1){
 #======================
 $e_cal=0; # force field use.
 
-
 # MAKE STDOUT HOT -- see #"test ======================
 # see http://perl.plover.com/FAQs/Buffering.html
 select((select(STDOUT), $|=1)[0]);
-
 print"======= START PROCESSING $PROGRAMNAME ========================================\n";
-
 
 #----------------- HEADER ----------------
 $header = "PROGRAM: $PROGRAMNAME (Version $VERSION, Editdate $EDITDATE)
@@ -113,7 +108,6 @@ $header = $header."KT15 SERIAL NUMBER: $kt15sn\n";
 $filterfile = FindInfo($setupfile,'KT15 FILTER FILE', ': ');
 $header = $header."KT15 FILTER FILE: $filterfile\n";
 $filterfile = $ENV{DAQSWFOLDER}.'/'.$filterfile;
-
 
 $header = $header."CALIBRATION EMISSIVITY: $e_cal\n";
 $header = $header."NORMAL RUN\n";
@@ -193,7 +187,6 @@ $Tabs = 273.15;  # absolute temperature at 0degC
 $header = $header."KELVIN CONVERSION: $Tabs\n";
 
 $header = $header."VERBOSE MODE: $kv\n";
-
 #================================
 #v4b MIN AND MAX LATITUDES AND LONGITUDES TO TRAP BAD POSITIONS
 #================================
