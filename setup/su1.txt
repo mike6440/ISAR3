@@ -1,17 +1,15 @@
 THIS FILE: su1.txt
- ANDROMEDA LEADER CRUISE AL43  
-Editdate: 160412
+ CASPER WEST
+Editdate: 170910
 ISAR SERIAL NUMBER: 01
 # =1 simulate  =0 operate
-SIMULATEFLAG: 1
-
+SIMULATEFLAG: 0
 		DATA FILES ---------------------
 ISAR-RT OUT PATH: data
 NO DATA WAIT TIME: 3600
-
 COMMENTS:
-  AL43 prep
-  Maintenance. New window, new mirror, laser-check alignment
+  CasperWest prep
+  Maintenance. New encoder
 END
 
 	========================
@@ -30,26 +28,23 @@ SBD HUB COM NUMBER: 10004
 SCAN VIEW ANGLES: 280 325 45 135
 		#CAL EMIS: 0 = operation,  ~=1 = calibration mode
 CALIBRATION EMISSIVITY: 0
-SSST SLOPE : 1.0319
-SSST OFFSET: -0.0004
+SSST SLOPE : 1.0373
+SSST OFFSET: -0.0794
 	#Cal 1410approx   1.0972  -0.1397
 	#Cal 150206  1.06917  -0.08650
 	#Cal 150702  1.0001   -0.194
 	#Cal 151103  1.0701    0.1974
     #Cal 160406  1.0319   -0.0004
+    #Cal 170907  1.0373   -.0794
 KT15 SERIAL NUMBER: 4832
 KT15 FILTER FILE: kt15/kt15_filter_15854832.txt
-
-
 	# CALIBRATION
 CAL SSST SLOPE: 1
 CAL SSST OFFSET: 0
 CAL SCAN VIEW ANGLES: 280 325 45 90
-
 		# VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
 PROCESSING BB1 THERMISTORS: 1 2
 PROCESSING BB2 THERMISTORS: 1 2
-
 	=======================
 		BLACK BODY
 	=======================
@@ -66,30 +61,25 @@ REF VOLTAGE FOR 12 BIT ADC: 4.0928
 		## ISAR-01: 9995 9984 9997 9997
 		## ISAR-04: 10000 10000 10000 10000
 APPERATURE THERMS REF RESISTANCES: 10000 10000 10000 10000
-
-
 	=======================
 		CALIBRATION PARAMETERS
 	=======================
 		# INDEX -- (0,1,...) index.  Use for calibration case
 CALIBRATION VIEW POSITION : 3
-
 	========================
 		EXPERIMENT INFO
 	========================
-EXPERIMENT NAME: AL41
-GEOGRAPHIC LOCATION: BENICIA-JP-??
+EXPERIMENT NAME: CasperWest
+GEOGRAPHIC LOCATION: San Diego
 		two characters for a ship code
-PLATFORM NAME: AL
+PLATFORM NAME: SR
 LOCATION ON PLATFORM: RAILING
-HEIGHT ABOVE SEA LEVEL M: 30
-SHIP TYPE: CAR CARRIER
-SHIP NAME: ANDROMEDA LEADER
-CRUISE NAME: AL41
-	port or starboard
-PLATFORM SIDE: PORT
-
-
+HEIGHT ABOVE SEA LEVEL M: tbd
+SHIP TYPE: R/V
+SHIP NAME: SALLY RIDE
+CRUISE NAME: CW
+	port or starboar
+PLATFORM SIDE: TBD
 	========================
 		QUALITY ERROR CHECK
 	========================
@@ -98,9 +88,6 @@ MAXIMUM EXPECTED LATITUDE: 90
 MINIMUM EXPECTED LONGITUDE: -180
 MAXIMUM EXPECTED LONGITUDE: 360
 MISSING VALUE: -999
-
-
-
 	========================
 		GPS SETUP
 		NOTE: Use the Garmin-supplied Windows program to set the 17x for
@@ -114,16 +101,14 @@ GPS AVERAGING TIME: 120
 		FIXED POSITION -- NO GPS
 		(hub port=-1)
 	========================
-GPS FIXED LATITUDE: 47.60329
-GPS FIXED LONGITUDE: -122.28797
+    San Diego
+GPS FIXED LATITUDE: 32.71515
+GPS FIXED LONGITUDE: -117.21534
 		Magnetic variation, + = East of true
-GPS FIXED VARIATION: 18.1
-
+GPS FIXED VARIATION: 12.5
 GPS COMMENTS
   The receiver is the GPS17X by Garmin.
 END
-
-
 	========================
 		ISAR
 	========================
@@ -139,8 +124,6 @@ APERATURE EMISSIVITY : 0.95
 MAXIMUM NUMBER OF AVERAGES: 1e20
 MIN SAMPLES FOR AVG: 2
 SELF-HEAT FLAG: 1
-
-
 	========================
 		END SETUP FILE
 	========================
