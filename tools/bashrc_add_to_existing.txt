@@ -35,4 +35,13 @@ if expr $DAQ = "ISAR3" > /dev/null ; then
 test -f $DAQPATH/ISAR3/sw/tools/bashrc_isar3.txt && . $_
 fi
 
+        # color for mac os x
+    #export LSCOLORS="cxfxcxdxfxegedabagacad"
+    # color for linux
+LS_COLORS=$LS_COLORS:'di=0;91:fi=1;33:ex=0;92:' ; export LS_COLORS
+
+    # handy alias
+alias ls="ls -a --color=auto"
+alias ll="ls -la --color=auto"
+
 #==== END INSERTED TEXT =======================================

@@ -429,13 +429,11 @@ spawn -noecho getsetupinfo $setupfile "GPS FIXED LATITUDE"
 expect -re "(\.*)(\r)";
 set fixedlat $expect_out(1,string)
 write_info $infoname  "GPS FIXED LATITUDE: $fixedlat"
-
 		# GPS FIXED LONGITUDE
 spawn -noecho getsetupinfo $setupfile "GPS FIXED LONGITUDE"
 expect -re "(\.*)(\r)";
 set fixedlon $expect_out(1,string)
 write_info $infoname  "GPS FIXED LONGITUDE: $fixedlon"
-
 		## GPS PORT
 		## -1 => no gps, use fixed values 
 spawn -noecho getsetupinfo $setupfile "GPS HUB COM NUMBER"
@@ -443,24 +441,29 @@ expect -re "(\.*)(\r)";
 set gpsport $expect_out(1,string)
 write_info $infoname  "GPS HUB COM NUMBER: $gpsport"
 send_user "GPS HUB COM NUMBER: $gpsport\n"
-
-   # !! TO DO - use fixedlat and fixedlon
-# set gpsstr [exec fixed_gprmc a]
-# send_user "STARTUP GPS: $gpsstr\n"
-# set glen [string length $gpsstr]
-# set timegps [timestamp -gmt]
-
-		# OPEN GPS SERIAL PORTS
-SpawnGPS $hub_url $gpsport 
-send_user "GPS=$GPS, GPSPID=$GPSPID\n";
-		# OPEN AVG PROGRAMS
-SpawnAvgGPS  $setupfile 
-send_user "GPSAV=$GPSAV, GPSAVPID=$GPSAVPID\n";
-		## ISAR PORT
+	## ISAR PORT
 spawn -noecho getsetupinfo $setupfile "ISAR HUB COM NUMBER"
 expect -re "(\.*)(\r)";
 set isarport $expect_out(1,string)
 write_info $infoname  "ISAR HUB COM NUMBER: $isarport"
+	# OPEN ISAR CONNECTOION - v2 include simulate
+spawn -noecho getsetupinfo $setupfile "SIMULATEFLAG"
+expect -re "(\.*)(\r)";
+set simulateflag $expect_out(1,string)
+if { $simulateflag == 1 } { 
+	send_user "SIMULATE ISAR\n";
+	set gpsport -1 ;#v3 change the GPSto fixed for simulate
+	SpawnIsarSimulate;
+} else {
+	send_user "STANDARD ISAR\n";
+	SpawnIsar $hub_url $isarport
+}
+	# OPEN GPS CONNECTION
+SpawnGPS $hub_url $gpsport 
+send_user "GPS=$GPS, GPSPID=$GPSPID\n";
+	# OPEN AVG PROGRAMS
+SpawnAvgGPS  $setupfile 
+send_user "GPSAV=$GPSAV, GPSAVPID=$GPSAVPID\n";
 		#=================
 		# OPEN SET FILE NAMES AND NOTE TIME
 		#=================
@@ -479,17 +482,7 @@ set rwname "$datapath/isar_raw_$fname.txt";
 write_info $infoname  "ISAR RAW FILE: $rwname";
 set gpsrawname "$datapath/gps_raw_$fname.txt";
 write_info $infoname  "GPS RAW FILE: $gpsrawname";
-	# OPEN SERIAL CONNECTION - v2 include simulate
-spawn -noecho getsetupinfo $setupfile "SIMULATEFLAG"
-expect -re "(\.*)(\r)";
-set simulateflag $expect_out(1,string)
-if { $simulateflag == 1 } { 
-	send_user "SIMULATE ISAR\n";
-	SpawnIsarSimulate;
-} else {
-	send_user "STANDARD ISAR\n";
-	SpawnIsar $hub_url $isarport
-}
+
 	# SPAWN AVG PROGRAMS
 SpawnAvgIsar $setupfile 
 set timeout 30		;# leave enough time for the scan drum to move
