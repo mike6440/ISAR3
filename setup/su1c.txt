@@ -1,5 +1,5 @@
 THIS FILE: su1c.txt
-	# Editdate: 170901
+	# Editdate: 171228
 	# New encoder, cleaned out after al50
 ISAR SERIAL NUMBER: 01
 	# =1 simulate  =0 operate
@@ -12,7 +12,18 @@ NO DATA WAIT TIME: 3600
 
 SERIAL HUB URL: 192.168.255.1
 	ISAR -- 10001, simulate=0
+	     -- 10003, test daq
 ISAR HUB COM NUMBER: 10003
+	# CAL PARAMS
+SSST SLOPE : 1
+SSST OFFSET: 0
+CAL SSST SLOPE: 1
+CAL SSST OFFSET: 0
+	# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
+CAL SCAN VIEW ANGLES: 280 325 45 90
+SCAN VIEW ANGLES: 280 325 45 135
+	# INDEX -- (0,1,...) index.
+CALIBRATION VIEW POSITION : 3
 
 	========================
 		QUALITY ERROR CHECK
@@ -23,18 +34,6 @@ MINIMUM EXPECTED LONGITUDE: -180
 MAXIMUM EXPECTED LONGITUDE: 360
 MISSING VALUE: -999
 
-
-	# RUN
-SSST SLOPE : 1
-SSST OFFSET: 0
-CAL SSST SLOPE: 1
-CAL SSST OFFSET: 0
-
-	# !! view angles (same as isar eeprom) -- (bb1, bb2, sky, sea)
-SCAN VIEW ANGLES: 280 325 45 135
-CAL SCAN VIEW ANGLES: 280 325 45 90
-	# INDEX -- (0,1,...) index.
-CALIBRATION VIEW POSITION : 3
 
 		# VIEW ANGLES (SAME AS ISAR EEPROM) -- (bb1, bb2, sky, sea)
 PROCESSING BB1 THERMISTORS: 1 2
