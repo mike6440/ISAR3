@@ -1,8 +1,8 @@
-171122 ISAR3/sw/help.txt
-  Enter "Help" to read.   Press 'q' to end this sheet  !!!!
-  Enter "vim help.txt" to edit.  <esc>:wq to quit
+180119 ISAR3/sw/help.txt
+-----------------------------
+  Enter "help" to read.   Press 'q' to end this sheet  !!!!
+  Enter "nano help.txt" to edit.  ^x y <cr> to quit
   gtdaq        --  go to "~/swmain/apps/ISAR3/s
-
 -----------------------------
     START OPERATION
 -----------------------------
@@ -14,15 +14,12 @@ isarraw             --  Confirm data flow  (^c to end)
 isarsbd             --  show SBD packets, 10-min, ^c to end
 isarraw             --  show $WIROS raw data, 280 sec, ^c to end
 isaravg             --  show PC avg file, 10 min averages (5,15,25,...,55), ^c to end
+sbdlog              --  past sbd tx's
+^c                  --  end
 -----------------------------
     STOP OPERATION
 -----------------------------
 Stopisar     --  End data collection
------------------------------
-    ARCHIVE DATA
------------------------------
-ArchiveIsar         -- Makes an archive file in /home/rmr/isardata
-ClearIsarData       -- Clears the data folder. (Checks y or n)
 -----------------------------
     TIME - SET THE CLOCK
 -----------------------------
@@ -31,9 +28,14 @@ SetDate r0srr0sr yyyy MM dd hh mm ss  -->  sets the PC clock
 	example:
 	  SetDate r0srr0sr 2016 05 20 17 23 30<enter>
 -----------------------------
+    ARCHIVE DATA
+-----------------------------
+ArchiveIsar         -- Makes an archive file in /home/rmr/isardata
+ClearIsarData       -- Clears the data folder. (Checks y or n)
+-----------------------------
     EDIT SETUP FILE
 -----------------------------
-vim setup/su1.txt  --  ip#, ports, cal coefficients, etc.
+nano setup/su1.txt  --  ip#, ports, cal coefficients, etc.
 cp setup/su1.txt setup/su.txt -- copy to the working file
 -----------------------------
     COMMUNICATIONS
@@ -58,5 +60,31 @@ IRIDIUM SBD
 			?           -- terminal menu
 			g           -- Go. End terminal session. Start operation.
 		^\ q            -- end direct connect. Hold down <Crtl> and '\'. Release and press 'q'. 
+---------------------------------
+SBD FORMAT -- use "sbdlog" to see past tx's
+Every ten minutes you will see SBD data lines.
+---------------------------
+HEAD    DATE     TIME   LAT      LON        SST   P   sdP R  sdR   EMIS  KSKY KSEA K1 K2  T1   T2    RAIN  SW
+$ISRAV,20160906,182000,45.59777,-122.77385,20.90,4.2,0.1,0.3,0.4,0.98688,310,271,297,376,17.88,34.46,0.7437,11#
+where
+HEAD is the NMEA head ID
+DATE is the date, yyyyMMdd
+TIME is the time (UTC), hhmmss
+LAT is the latitude, deg
+LON is the longitude, deg
+SST is the sea surface skin temperature, C
+P is the mean pitch angle, deg
+sdP is the standard deviation of the pitch, deg
+R is the mean roll angle, deg
+sdRis the standard deviation of the roll, deg
+EMIS is the emisivity for the mean roll and pointing angle,
+KSKY is the IRT voltage for the sky view, mv
+KSEA is the IRT voltage for the sea (target) view, mv
+K1 is the IRT mean voltage for the Black Body 1 view, mv
+K2is the IRT mean voltage for the Black Body 2 view, mv
+T1 is the mean temperature of the BB1, C
+T2 is the mean temperature for BB2, C
+RAIN is the ORG voltage, mV
+SW is the switch position, 01=closed, 10=open, 00 or 11 = error
 ----- END -----------------
 

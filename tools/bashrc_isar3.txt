@@ -109,5 +109,7 @@ alias sbdlog="tail -f ../data/sbdlog"
 
 cd $DAQSWFOLDER
 
-alias Help="less $DAQSWFOLDER/help.txt"
+alias help="less $DAQSWFOLDER/help.txt"
+alias Help="help"
+
 
