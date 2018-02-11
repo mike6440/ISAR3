@@ -1,7 +1,7 @@
 #!/usr/bin/perl -X
 my $PROGRAMNAME = 'avgisar';
 my $VERSION = '23';  
-my $EDITDATE = '170911'; '160704';  #'160611';
+my $EDITDATE = '170911';# '160704';  #'160611';
 
 # RT PROCESSING OF ISAR DATA 
 #v01 -- taken from isrtsb
@@ -43,7 +43,6 @@ use perltools::MRsensors;
 use perltools::MRstatistics;
 use perltools::Isar;
 use POSIX;
-
 
 #=======================
 # FIND THE SETUP FILE
@@ -811,7 +810,8 @@ sub ReadNextRecord
 			# 20061213-221214,1065,1,0,-4.5, 3.4, 285, 1023,2456,2454,2345,3487,3498,3567,4.045,-34.564,-123.087,04.5,234
 			$str = sprintf"<<%s,%4.0f,%d,%d, %4.1f,%4.1f, %04.1f, %4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%4.0f,%6.3f,%d,%.2f",		#v15
 			dtstr($record{dt},'iso'), maxvalue($missing,$record{org}*1000),$record{sw1},$record{sw2},
-			$record{pitch},$record{roll},$record{drum},maxvalue($missing,$record{kt}*1000),
+			$record{pitch},$record{roll},$record{drum},
+			maxvalue($missing,$record{kt}*1000),
 			maxvalue($missing,$record{bb1t1}*1000),maxvalue($missing,$record{bb1t2}*1000),
 			maxvalue($missing,$record{bb1t3}*1000),
 			maxvalue($missing,$record{bb2t1}*1000),maxvalue($missing,$record{bb2t2}*1000),
